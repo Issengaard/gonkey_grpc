@@ -2,6 +2,7 @@ package models
 
 import "errors"
 
+// DatabaseResult holds the result of a single database query check.
 type DatabaseResult struct {
 	Query    string
 	Response []string
@@ -17,9 +18,13 @@ type Result struct {
 	ResponseContentType string
 	ResponseBody        string
 	ResponseHeaders     map[string][]string
-	Errors              []error
-	Test                TestInterface
-	DatabaseResult      []DatabaseResult
+	// gRPC response fields
+	GrpcStatusCode    int
+	GrpcStatusMessage string
+	GrpcTrailers      map[string][]string
+	Errors            []error
+	Test              TestInterface
+	DatabaseResult    []DatabaseResult
 }
 
 func allureStatus(status string) bool {

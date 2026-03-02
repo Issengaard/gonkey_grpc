@@ -1,9 +1,10 @@
 package parser
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRedisFixtureParser_Load(t *testing.T) {

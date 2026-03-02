@@ -66,6 +66,10 @@ type TestInterface interface {
 	// Clone returns copy of current object
 	Clone() TestInterface
 
+	// gRPC transport methods
+	GetTransport() string
+	GetProtoSource() *GrpcProtoSource
+
 	// Allure metadata for TMS integration
 	GetAllureMetadata() *AllureMetadata
 }

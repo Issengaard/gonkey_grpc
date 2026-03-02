@@ -1,0 +1,23 @@
+- name: "GetUser — success"
+  transport: grpc
+  path: "users.UserService/GetUser"
+  request: |
+    {"id": "123"}
+  headers:
+    authorization: "Bearer token123"
+  proto_source:
+    type: reflection
+  response:
+    0: |
+      {"user": {"id": "123", "name": "Alice"}}
+
+- name: "GetUser — not found"
+  transport: grpc
+  path: "users.UserService/GetUser"
+  request: |
+    {"id": "nonexistent"}
+  proto_source:
+    type: protoset
+    protoset_file: "testdata/service.protoset"
+  response:
+    5: '{"message": "user not found"}'

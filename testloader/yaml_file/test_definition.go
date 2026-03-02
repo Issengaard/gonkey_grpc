@@ -34,6 +34,10 @@ type TestDefinition struct {
 
 	// Allure metadata (for TMS integration: TestIT, Allure TestOps, etc.)
 	Allure *models.AllureMetadata `json:"allure" yaml:"allure"`
+
+	// gRPC fields
+	Transport   string                  `json:"transport" yaml:"transport"`
+	ProtoSource *models.GrpcProtoSource `json:"proto_source" yaml:"proto_source"`
 }
 
 type CaseData struct {
