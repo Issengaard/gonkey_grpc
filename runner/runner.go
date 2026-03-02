@@ -21,6 +21,7 @@ import (
 
 type Config struct {
 	Host                  string
+	GrpcHost              string
 	FixturesLoader        fixtures.Loader
 	FixturesLoaderMultiDb fixtures.LoaderMultiDb
 	Mocks                 *mocks.Mocks

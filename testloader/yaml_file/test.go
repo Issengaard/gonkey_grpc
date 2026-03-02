@@ -1,6 +1,8 @@
 package yaml_file
 
 import (
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/lamoda/gonkey/models"
@@ -48,6 +50,9 @@ func (t *Test) GetMethod() string {
 func (t *Test) Path() string {
 	return t.RequestURL
 }
+
+func (t *Test) GetTransport() string                    { return t.Transport }
+func (t *Test) GetProtoSource() *models.GrpcProtoSource { return t.ProtoSource }
 
 func (t *Test) GetRequest() string {
 	return t.Request
@@ -183,6 +188,46 @@ func (t *Test) GetFileName() string {
 
 func (t *Test) Clone() models.TestInterface {
 	res := *t
+
+	if t.ProtoSource != nil {
+		src := *t.ProtoSource
+		res.ProtoSource = &src
+	}
+
+	// deep copy TestDefinition map fields
+	res.Variables = maps.Clone(t.Variables)
+	res.HeadersVal = maps.Clone(t.HeadersVal)
+	res.CookiesVal = maps.Clone(t.CookiesVal)
+	res.MocksDefinition = maps.Clone(t.MocksDefinition)
+	res.ResponseTmpls = maps.Clone(t.ResponseTmpls)
+
+	if t.VariablesToSet != nil {
+		res.VariablesToSet = make(VariablesToSet, len(t.VariablesToSet))
+		for k, v := range t.VariablesToSet {
+			res.VariablesToSet[k] = maps.Clone(v)
+		}
+	}
+
+	if t.TestDefinition.ResponseHeaders != nil {
+		res.TestDefinition.ResponseHeaders = make(map[int]map[string]string, len(t.TestDefinition.ResponseHeaders))
+		for k, v := range t.TestDefinition.ResponseHeaders {
+			res.TestDefinition.ResponseHeaders[k] = maps.Clone(v)
+		}
+	}
+
+	// deep copy Test map and slice fields
+	res.Responses = maps.Clone(t.Responses)
+	res.CombinedVariables = maps.Clone(t.CombinedVariables)
+
+	if t.ResponseHeaders != nil {
+		res.ResponseHeaders = make(map[int]map[string]string, len(t.ResponseHeaders))
+		for k, v := range t.ResponseHeaders {
+			res.ResponseHeaders[k] = maps.Clone(v)
+		}
+	}
+
+	res.DbResponse = slices.Clone(t.DbResponse)
+	res.DbChecks = slices.Clone(t.DbChecks)
 
 	return &res
 }

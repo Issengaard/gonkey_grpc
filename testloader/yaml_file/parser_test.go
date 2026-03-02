@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/lamoda/gonkey/models"
 )
@@ -104,4 +105,22 @@ func TestParseTestsWithDbChecks(t *testing.T) {
 	assert.Equal(t, 2, len(tests))
 	assert.Equal(t, "", tests[0].GetDatabaseChecks()[0].DbNameString())
 	assert.Equal(t, "connection_name", tests[1].GetDatabaseChecks()[0].DbNameString())
+}
+
+func TestParseGrpcFields(t *testing.T) {
+	tests, err := parseTestDefinitionFile("./testdata/grpc-test.yaml")
+	require.NoError(t, err)
+	require.Len(t, tests, 2)
+
+	// first test: reflection
+	assert.Equal(t, "grpc", tests[0].GetTransport())
+	require.NotNil(t, tests[0].GetProtoSource())
+	assert.Equal(t, models.GrpcProtoSourceTypeReflection, tests[0].GetProtoSource().Type)
+	assert.Equal(t, "", tests[0].GetProtoSource().ProtosetFile)
+
+	// second test: protoset
+	assert.Equal(t, "grpc", tests[1].GetTransport())
+	require.NotNil(t, tests[1].GetProtoSource())
+	assert.Equal(t, models.GrpcProtoSourceTypeProtoset, tests[1].GetProtoSource().Type)
+	assert.Equal(t, "testdata/service.protoset", tests[1].GetProtoSource().ProtosetFile)
 }
