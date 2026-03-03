@@ -1,0 +1,9 @@
+- name: "SayHello — missing protoset"
+  transport: grpc
+  path: "helloworld.Greeter/SayHello"
+  request: '{"name": "World"}'
+  proto_source:
+    type: protoset
+    protoset_file: "testdata/nonexistent.protoset"
+  response:
+    0: '{"message": "Hello, World!"}'

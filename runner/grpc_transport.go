@@ -18,7 +18,7 @@ import (
 	"github.com/lamoda/gonkey/models"
 )
 
-// Compile-time interface check (ES-0053).
+// Compile-time interface check
 var _ TransportExecutor = (*GrpcTransport)(nil)
 
 // GrpcTransport — реализация TransportExecutor для gRPC вызовов без proto-стабов.
@@ -44,7 +44,6 @@ func newGrpcTransport(cfg *Config) *GrpcTransport { //nolint:unused // called fr
 func (t *GrpcTransport) Execute(ctx context.Context, test models.TestInterface) (*models.Result, error) {
 	host := t.cfg.GrpcHost
 
-	// 1. Открыть соединение через grpc.NewClient (не grpc.Dial).
 	conn, err := grpc.NewClient(
 		host,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -54,21 +53,17 @@ func (t *GrpcTransport) Execute(ctx context.Context, test models.TestInterface) 
 	}
 	defer conn.Close()
 
-	// 2. Получить descriptor source.
 	descSource, err := t.buildDescriptorSource(ctx, conn, test.GetProtoSource(), host)
 	if err != nil {
 		return nil, fmt.Errorf("descriptor source: %w", err)
 	}
 
-	// 3. Применить metadata из headers.
 	if md := test.Headers(); len(md) > 0 {
 		ctx = metadata.NewOutgoingContext(ctx, metadata.New(md))
 	}
 
-	// 4. Сформировать имя метода из path (формат: "service/method" → "/service/method").
 	methodName := "/" + test.Path()
 
-	// 5. Создать парсер запроса и форматтер ответа.
 	rf, formatter, err := grpcurl.RequestParserAndFormatterFor(
 		grpcurl.FormatJSON,
 		descSource,
@@ -80,13 +75,11 @@ func (t *GrpcTransport) Execute(ctx context.Context, test models.TestInterface) 
 		return nil, fmt.Errorf("parse grpc request: %w", err)
 	}
 
-	// 6. Вызвать RPC.
 	var responseBody strings.Builder
 	h := &grpcResponseHandler{out: &responseBody, formatter: formatter}
 
 	invokeErr := grpcurl.InvokeRPC(ctx, descSource, conn, methodName, nil, h, rf.Next)
 
-	// 7. Обработать результат.
 	grpcStatus, ok := status.FromError(invokeErr)
 	if !ok {
 		return nil, invokeErr
@@ -106,7 +99,7 @@ func (t *GrpcTransport) Execute(ctx context.Context, test models.TestInterface) 
 	}
 
 	if h.trailers != nil {
-		result.GrpcTrailers = map[string][]string(h.trailers)
+		result.GrpcTrailers = h.trailers
 	}
 
 	return result, nil

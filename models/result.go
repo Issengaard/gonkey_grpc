@@ -18,13 +18,12 @@ type Result struct {
 	ResponseContentType string
 	ResponseBody        string
 	ResponseHeaders     map[string][]string
-	// gRPC response fields
-	GrpcStatusCode    int
-	GrpcStatusMessage string
-	GrpcTrailers      map[string][]string
-	Errors            []error
-	Test              TestInterface
-	DatabaseResult    []DatabaseResult
+	GrpcStatusCode      int
+	GrpcStatusMessage   string
+	GrpcTrailers        map[string][]string
+	Errors              []error
+	Test                TestInterface
+	DatabaseResult      []DatabaseResult
 }
 
 func allureStatus(status string) bool {
