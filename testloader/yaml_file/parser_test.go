@@ -58,20 +58,24 @@ var testsYAMLData = `
         newVar: some_value
 `
 
+func writeTempYAML(t *testing.T, content string) string {
+	t.Helper()
+
+	f, err := os.CreateTemp(t.TempDir(), "gonkey-test-*.yaml")
+	require.NoError(t, err)
+
+	_, err = fmt.Fprint(f, content)
+	require.NoError(t, err)
+
+	return f.Name()
+}
+
 func TestParseTestsWithCases(t *testing.T) {
 	t.Parallel()
 
-	tmpfile, err := os.CreateTemp(t.TempDir(), "tmpfile_")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(tmpfile.Name())
+	path := writeTempYAML(t, testsYAMLData)
 
-	if _, err := fmt.Fprint(tmpfile, testsYAMLData); err != nil {
-		t.Fatal(err)
-	}
-
-	tests, err := parseTestDefinitionFile(tmpfile.Name())
+	tests, err := parseTestDefinitionFile(path)
 	require.NoError(t, err)
 	if len(tests) != 2 {
 		t.Errorf("wait len(tests) == 2, got len(tests) == %d", len(tests))
@@ -156,12 +160,46 @@ func TestParser_ParseGrpcTest(t *testing.T) {
 	}
 }
 
-func TestParser_ParseGrpcTest_MissingProtoset(t *testing.T) {
+func TestParser_ParseGrpcTest_Errors(t *testing.T) {
 	t.Parallel()
 
-	_, err := parseTestDefinitionFile("testdata/grpc-test-missing-protoset.yaml")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "nonexistent.protoset")
+	cases := map[string]struct {
+		yamlContent string
+		filePath    string
+		wantErr     string
+	}{
+		"empty_protoset_file": {
+			yamlContent: "- name: test\n  transport: grpc\n  path: svc/Method\n  proto_source:\n    type: protoset\n  response:\n    0: \"{}\"\n",
+			wantErr:     "protoset_file is not set",
+		},
+		"missing_protoset_file": {
+			filePath: "testdata/grpc-test-missing-protoset.yaml",
+			wantErr:  "nonexistent.protoset",
+		},
+		"unknown_proto_source_type": {
+			yamlContent: "- name: test\n  transport: grpc\n  path: svc/Method\n  proto_source:\n    type: unknown_type\n  response:\n    0: \"{}\"\n",
+			wantErr:     "unknown proto_source type",
+		},
+	}
+
+	for name, tc := range cases {
+		tc := tc
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var path string
+			if tc.yamlContent != "" {
+				path = writeTempYAML(t, tc.yamlContent)
+			} else {
+				path = tc.filePath
+			}
+
+			_, err := parseTestDefinitionFile(path)
+			require.Error(t, err)
+			assert.ErrorContains(t, err, tc.wantErr)
+		})
+	}
 }
 
 func TestParser_ParseGrpcTest_Clone(t *testing.T) {
