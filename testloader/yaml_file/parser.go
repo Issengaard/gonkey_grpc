@@ -53,18 +53,27 @@ func parseTestDefinitionFile(absPath string) ([]Test, error) {
 
 // validateProtoSources checks that protoset files referenced in tests actually exist.
 func validateProtoSources(tests []Test) error {
-	for _, test := range tests {
+	for i := range tests {
+		test := &tests[i]
 		src := test.GetProtoSource()
-		if src == nil || src.Type != "protoset" {
+
+		if src == nil {
 			continue
 		}
 
-		if src.ProtosetFile == "" {
-			return fmt.Errorf("test %q: proto_source type is \"protoset\" but protoset_file is not set", test.Name)
-		}
+		switch src.Type {
+		case models.GrpcProtoSourceTypeProtoset:
+			if src.ProtosetFile == "" {
+				return fmt.Errorf("test %q: proto_source type is %q but protoset_file is not set", test.Name, models.GrpcProtoSourceTypeProtoset)
+			}
 
-		if _, err := os.Stat(src.ProtosetFile); err != nil {
-			return fmt.Errorf("test %q: protoset_file %q: %w", test.Name, src.ProtosetFile, err)
+			if _, err := os.Stat(src.ProtosetFile); err != nil {
+				return fmt.Errorf("test %q: protoset_file %q: %w", test.Name, src.ProtosetFile, err)
+			}
+		case models.GrpcProtoSourceTypeReflection, "":
+			// "" (empty) is treated as reflection — intentional default for backwards compatibility
+		default:
+			return fmt.Errorf("test %q: unknown proto_source type %q", test.Name, src.Type)
 		}
 	}
 
