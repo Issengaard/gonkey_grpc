@@ -3,22 +3,21 @@ package runner
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/lamoda/gonkey/models"
 )
 
-// TransportExecutor выполняет транспортный слой для одного тест-кейса.
-type TransportExecutor interface {
+// transportExecutor executes the transport layer for a single test case.
+type transportExecutor interface {
 	Execute(ctx context.Context, test models.TestInterface) (*models.Result, error)
 }
 
-// newTransportExecutor диспатчит на нужный транспорт по полю transport.
-// Неизвестный транспорт → возвращает ошибку (не panic).
-func newTransportExecutor(test models.TestInterface, cfg *Config) (TransportExecutor, error) { //nolint:unused // wired in later task
+// newTransportExecutor dispatches to the appropriate transport based on the
+// test's transport field. Unknown transport values return an error (no panic).
+func newTransportExecutor(test models.TestInterface, cfg *Config) (transportExecutor, error) {
 	switch test.GetTransport() {
 	case "":
-		log.Println("WARN: transport field is empty, defaulting to HTTP. Set transport: http explicitly.")
+		fmt.Printf("WARN: transport field is empty, defaulting to HTTP. Set transport: http explicitly.\n")
 
 		return newHttpTransport(cfg), nil
 	case "http":
