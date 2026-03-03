@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -9,14 +10,14 @@ import (
 )
 
 // Compile-time interface check (ES-0053).
-var _ TransportExecutor = (*HttpTransport)(nil)
+var _ transportExecutor = (*HttpTransport)(nil)
 
 type HttpTransport struct {
 	cfg    *Config
 	client *http.Client
 }
 
-func newHttpTransport(cfg *Config) *HttpTransport { //nolint:unused // called from newTransportExecutor, will be wired in a later task
+func newHttpTransport(cfg *Config) *HttpTransport {
 	return &HttpTransport{
 		cfg:    cfg,
 		client: newClient(cfg.HTTPProxyURL), // newClient остаётся в request.go
@@ -36,10 +37,13 @@ func (t *HttpTransport) Execute(ctx context.Context, test models.TestInterface) 
 
 	body, err := io.ReadAll(resp.Body)
 
-	_ = resp.Body.Close()
-
+	closeErr := resp.Body.Close()
 	if err != nil {
 		return nil, err
+	}
+
+	if closeErr != nil {
+		return nil, fmt.Errorf("closing response body: %w", closeErr)
 	}
 
 	bodyStr := string(body)

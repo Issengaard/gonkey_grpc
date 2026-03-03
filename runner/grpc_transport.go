@@ -19,56 +19,81 @@ import (
 )
 
 // Compile-time interface check (ES-0053).
-var _ TransportExecutor = (*GrpcTransport)(nil)
+var _ transportExecutor = (*GrpcTransport)(nil)
 
-// GrpcTransport — реализация TransportExecutor для gRPC вызовов без proto-стабов.
-// Использует grpcurl как библиотеку для динамических вызовов через reflection или protoset.
+// GrpcTransport is a transportExecutor implementation for gRPC calls without proto stubs.
+// It uses grpcurl as a library for dynamic invocations via server reflection or protoset files.
 type GrpcTransport struct {
 	cfg             *Config
-	descSourceCache sync.Map // ключ: host string → grpcurl.DescriptorSource (только reflection)
+	mu              sync.Mutex        // protects conn
+	conn            *grpc.ClientConn  // protected by mu
+	descSourceCache sync.Map          // key: path string → grpcurl.DescriptorSource (protoset only)
 }
 
-// grpcResponseHandler реализует grpcurl.InvocationEventHandler.
-// Собирает JSON-сериализованный ответ и trailing metadata.
+// grpcResponseHandler implements grpcurl.InvocationEventHandler.
+// It collects the JSON-serialised response body and trailing metadata.
 type grpcResponseHandler struct {
 	out       *strings.Builder
 	formatter grpcurl.Formatter
 	trailers  metadata.MD
+	formatErr error
 }
 
-func newGrpcTransport(cfg *Config) *GrpcTransport { //nolint:unused // called from newTransportExecutor, will be wired in a later task
+func newGrpcTransport(cfg *Config) *GrpcTransport {
 	return &GrpcTransport{cfg: cfg}
 }
 
-// Execute выполняет один gRPC вызов и возвращает результат.
-func (t *GrpcTransport) Execute(ctx context.Context, test models.TestInterface) (*models.Result, error) {
-	host := t.cfg.GrpcHost
+func (t *GrpcTransport) getConn() (*grpc.ClientConn, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
-	// 1. Открыть соединение через grpc.NewClient (не grpc.Dial).
+	if t.conn != nil {
+		return t.conn, nil
+	}
+
 	conn, err := grpc.NewClient(
-		host,
+		t.cfg.GrpcHost,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("grpc dial %s: %w", host, err)
+		return nil, fmt.Errorf("grpc dial %s: %w", t.cfg.GrpcHost, err)
 	}
-	defer conn.Close()
 
-	// 2. Получить descriptor source.
-	descSource, err := t.buildDescriptorSource(ctx, conn, test.GetProtoSource(), host)
+	t.conn = conn
+
+	return t.conn, nil
+}
+
+// Close closes the persistent gRPC connection.
+func (t *GrpcTransport) Close() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.conn != nil {
+		return t.conn.Close()
+	}
+
+	return nil
+}
+
+// Execute performs a single gRPC call and returns the result.
+func (t *GrpcTransport) Execute(ctx context.Context, test models.TestInterface) (*models.Result, error) {
+	conn, err := t.getConn()
+	if err != nil {
+		return nil, err
+	}
+
+	descSource, err := t.buildDescriptorSource(ctx, conn, test.GetProtoSource())
 	if err != nil {
 		return nil, fmt.Errorf("descriptor source: %w", err)
 	}
 
-	// 3. Применить metadata из headers.
 	if md := test.Headers(); len(md) > 0 {
 		ctx = metadata.NewOutgoingContext(ctx, metadata.New(md))
 	}
 
-	// 4. Сформировать имя метода из path (формат: "service/method" → "/service/method").
 	methodName := "/" + test.Path()
 
-	// 5. Создать парсер запроса и форматтер ответа.
 	rf, formatter, err := grpcurl.RequestParserAndFormatterFor(
 		grpcurl.FormatJSON,
 		descSource,
@@ -80,13 +105,15 @@ func (t *GrpcTransport) Execute(ctx context.Context, test models.TestInterface) 
 		return nil, fmt.Errorf("parse grpc request: %w", err)
 	}
 
-	// 6. Вызвать RPC.
 	var responseBody strings.Builder
 	h := &grpcResponseHandler{out: &responseBody, formatter: formatter}
 
 	invokeErr := grpcurl.InvokeRPC(ctx, descSource, conn, methodName, nil, h, rf.Next)
 
-	// 7. Обработать результат.
+	if h.formatErr != nil {
+		return nil, fmt.Errorf("format grpc response: %w", h.formatErr)
+	}
+
 	grpcStatus, ok := status.FromError(invokeErr)
 	if !ok {
 		return nil, invokeErr
@@ -98,7 +125,7 @@ func (t *GrpcTransport) Execute(ctx context.Context, test models.TestInterface) 
 		GrpcStatusMessage: grpcStatus.Message(),
 	}
 
-	// Для ошибочных статусов формируем JSON-обёртку с message.
+	// For non-OK status codes, wrap the message in a JSON object.
 	if grpcStatus.Code() != 0 {
 		result.ResponseBody = fmt.Sprintf(`{"message": %q}`, grpcStatus.Message())
 	} else {
@@ -106,7 +133,7 @@ func (t *GrpcTransport) Execute(ctx context.Context, test models.TestInterface) 
 	}
 
 	if h.trailers != nil {
-		result.GrpcTrailers = map[string][]string(h.trailers)
+		result.GrpcTrailers = h.trailers
 	}
 
 	return result, nil
@@ -116,20 +143,28 @@ func (t *GrpcTransport) buildDescriptorSource(
 	ctx context.Context,
 	conn *grpc.ClientConn,
 	protoSource *models.GrpcProtoSource,
-	host string,
 ) (grpcurl.DescriptorSource, error) {
-	if protoSource == nil || protoSource.Type == "reflection" || protoSource.Type == "" {
-		if cached, ok := t.descSourceCache.Load(host); ok {
+	if protoSource == nil || protoSource.Type == models.GrpcProtoSourceTypeReflection || protoSource.Type == "" {
+		// Reflection client is intentionally not cached per-Execute:
+		// the service schema may evolve between calls; the gRPC connection itself is persistent.
+		refClient := grpcreflect.NewClientAuto(ctx, conn)
+
+		return grpcurl.DescriptorSourceFromServer(ctx, refClient), nil
+	}
+
+	if protoSource.Type == models.GrpcProtoSourceTypeProtoset {
+		if cached, ok := t.descSourceCache.Load(protoSource.ProtosetFile); ok {
 			return cached.(grpcurl.DescriptorSource), nil
 		}
-		refClient := grpcreflect.NewClientAuto(ctx, conn)
-		descSource := grpcurl.DescriptorSourceFromServer(ctx, refClient)
-		t.descSourceCache.Store(host, descSource)
 
-		return descSource, nil
-	}
-	if protoSource.Type == "protoset" {
-		return grpcurl.DescriptorSourceFromProtoSets(protoSource.ProtosetFile)
+		src, err := grpcurl.DescriptorSourceFromProtoSets(protoSource.ProtosetFile)
+		if err != nil {
+			return nil, err
+		}
+
+		t.descSourceCache.Store(protoSource.ProtosetFile, src)
+
+		return src, nil
 	}
 
 	return nil, fmt.Errorf("unknown proto_source type: %s", protoSource.Type)
@@ -140,10 +175,17 @@ func (h *grpcResponseHandler) OnSendHeaders(_ metadata.MD)              {}
 func (h *grpcResponseHandler) OnReceiveHeaders(_ metadata.MD)           {}
 
 func (h *grpcResponseHandler) OnReceiveResponse(resp gogoproto.Message) {
-	body, err := h.formatter(resp)
-	if err != nil {
+	if h.formatErr != nil { // guard: don't overwrite first error on streaming responses
 		return
 	}
+
+	body, err := h.formatter(resp)
+	if err != nil {
+		h.formatErr = err
+
+		return
+	}
+
 	h.out.WriteString(body)
 }
 

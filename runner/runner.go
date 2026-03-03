@@ -1,12 +1,13 @@
 package runner
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/lamoda/gonkey/checker"
@@ -28,6 +29,7 @@ type Config struct {
 	MocksLoader           *mocks.Loader
 	Variables             *variables.Variables
 	HTTPProxyURL          *url.URL
+	RequestTimeout        time.Duration
 }
 
 type (
@@ -40,9 +42,9 @@ type Runner struct {
 	testExecutionHandler testHandler
 	output               []output.OutputInterface
 	checkers             []checker.CheckerInterface
-	client               *http.Client
-
-	config *Config
+	config               *Config
+	transports           map[string]transportExecutor
+	mu                   sync.RWMutex // protects transports map
 }
 
 func New(config *Config, loader testloader.LoaderInterface, handler testHandler) *Runner {
@@ -50,7 +52,7 @@ func New(config *Config, loader testloader.LoaderInterface, handler testHandler)
 		config:               config,
 		loader:               loader,
 		testExecutionHandler: handler,
-		client:               newClient(config.HTTPProxyURL),
+		transports:           make(map[string]transportExecutor),
 	}
 }
 
@@ -62,11 +64,24 @@ func (r *Runner) AddCheckers(c ...checker.CheckerInterface) {
 	r.checkers = append(r.checkers, c...)
 }
 
+var (
+	errTestSkipped = errors.New("test was skipped")
+	errTestBroken  = errors.New("test was broken")
+)
+
 func (r *Runner) Run() error {
 	tests, err := r.loader.Load()
 	if err != nil {
 		return err
 	}
+
+	defer func() {
+		for _, t := range r.transports {
+			if closer, ok := t.(io.Closer); ok {
+				_ = closer.Close()
+			}
+		}
+	}()
 
 	hasFocused := checkHasFocused(tests)
 	for _, t := range tests {
@@ -84,73 +99,109 @@ func (r *Runner) Run() error {
 			}
 		}
 
-		testExecutor := func(testInterface models.TestInterface) (*models.Result, error) {
-			switch testInterface.GetStatus() {
-			case "broken":
-				return nil, errTestBroken
-			case "skipped":
-				return nil, errTestSkipped
-			}
-			testResult, err := r.executeTest(test)
-			if err != nil {
-				return nil, err
-			}
-
-			for _, o := range r.output {
-				if err := o.Process(test, testResult); err != nil {
-					return nil, err
-				}
-			}
-
-			return testResult, nil
-		}
+		testExecutor := r.buildTestExecutor(test)
 		err := r.testExecutionHandler(test, testExecutor)
 		if err != nil {
-			return fmt.Errorf("test %s error: %s", test.GetName(), err)
+			return fmt.Errorf("test %s error: %w", test.GetName(), err)
 		}
-
 	}
 
 	return nil
 }
 
-var (
-	errTestSkipped = errors.New("test was skipped")
-	errTestBroken  = errors.New("test was broken")
-)
+func (r *Runner) buildTestExecutor(test models.TestInterface) testExecutor {
+	return func(testInterface models.TestInterface) (*models.Result, error) {
+		switch testInterface.GetStatus() {
+		case "broken":
+			return nil, errTestBroken
+		case "skipped":
+			return nil, errTestSkipped
+		}
 
-func (r *Runner) executeTest(v models.TestInterface) (*models.Result, error) {
-	r.config.Variables.Load(v.GetCombinedVariables())
-	v = r.config.Variables.Apply(v)
+		testResult, err := r.executeTest(test)
+		if err != nil {
+			return nil, err
+		}
 
-	// load fixtures
+		for _, o := range r.output {
+			if err := o.Process(test, testResult); err != nil {
+				return nil, err
+			}
+		}
+
+		return testResult, nil
+	}
+}
+
+func (r *Runner) getTransportExecutor(test models.TestInterface) (transportExecutor, error) {
+	key := test.GetTransport()
+
+	r.mu.RLock()
+	ex, ok := r.transports[key]
+	r.mu.RUnlock()
+
+	if ok {
+		return ex, nil
+	}
+
+	ex, err := newTransportExecutor(test, r.config)
+	if err != nil {
+		return nil, err
+	}
+
+	r.mu.Lock()
+	r.transports[key] = ex
+	r.mu.Unlock()
+
+	return ex, nil
+}
+
+func (r *Runner) loadFixtures(v models.TestInterface) error {
 	if r.config.FixturesLoader != nil && v.Fixtures() != nil {
 		if err := r.config.FixturesLoader.Load(v.Fixtures()); err != nil {
-			return nil, fmt.Errorf("unable to load fixtures [%s], error:\n%s", strings.Join(v.Fixtures(), ", "), err)
+			return fmt.Errorf("unable to load fixtures [%s], error:\n%w", strings.Join(v.Fixtures(), ", "), err)
 		}
 	}
 
 	if r.config.FixturesLoaderMultiDb != nil && v.FixturesMultiDb() != nil {
 		if err := r.config.FixturesLoaderMultiDb.Load(v.FixturesMultiDb()); err != nil {
-			return nil, fmt.Errorf("unable to load fixtures with db, error:\n%s", err)
+			return fmt.Errorf("unable to load fixtures with db, error:\n%w", err)
 		}
 	}
 
-	// reset mocks
+	return nil
+}
+
+func (r *Runner) setupMocks(v models.TestInterface) error {
 	if r.config.Mocks != nil {
 		// prevent deriving the definition from previous test
 		r.config.Mocks.ResetDefinitions()
 		r.config.Mocks.ResetRunningContext()
 	}
 
-	// load mocks
 	if r.config.MocksLoader != nil && v.ServiceMocks() != nil {
 		if err := r.config.MocksLoader.Load(v.ServiceMocks()); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	// launch script in cmd interface
+	return nil
+}
+
+func (r *Runner) executeTest(v models.TestInterface) (*models.Result, error) {
+	r.config.Variables.Load(v.GetCombinedVariables())
+	v = r.config.Variables.Apply(v)
+
+	if err := r.loadFixtures(v); err != nil {
+		return nil, err
+	}
+
+	if err := r.setupMocks(v); err != nil {
+		return nil, err
+	}
+
+	// Note: RequestTimeout applies only to transport.Execute().
+	// Scripts use their own timeout via BeforeScriptTimeout/AfterRequestScriptTimeout.
 	if v.BeforeScriptPath() != "" {
 		if err := cmd_runner.CmdRun(v.BeforeScriptPath(), v.BeforeScriptTimeout()); err != nil {
 			return nil, err
@@ -164,36 +215,21 @@ func (r *Runner) executeTest(v models.TestInterface) (*models.Result, error) {
 		fmt.Printf("Sleep %ds before requests\n", pause)
 	}
 
-	req, err := newRequest(r.config.Host, v)
+	executor, err := r.getTransportExecutor(v)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := r.client.Do(req)
-	if err != nil {
-		return nil, err
+	ctx := context.Background()
+	if r.config.RequestTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, r.config.RequestTimeout)
+		defer cancel()
 	}
 
-	body, err := io.ReadAll(resp.Body)
-
-	_ = resp.Body.Close()
-
+	result, err := executor.Execute(ctx, v)
 	if err != nil {
 		return nil, err
-	}
-
-	bodyStr := string(body)
-
-	result := models.Result{
-		Path:                req.URL.Path,
-		Query:               req.URL.RawQuery,
-		RequestBody:         actualRequestBody(req),
-		ResponseBody:        bodyStr,
-		ResponseContentType: resp.Header.Get("Content-Type"),
-		ResponseStatusCode:  resp.StatusCode,
-		ResponseStatus:      resp.Status,
-		ResponseHeaders:     resp.Header,
-		Test:                v,
 	}
 
 	// launch script in cmd interface
@@ -208,7 +244,7 @@ func (r *Runner) executeTest(v models.TestInterface) (*models.Result, error) {
 		result.Errors = append(result.Errors, errs...)
 	}
 
-	if err := r.setVariablesFromResponse(v, result.ResponseContentType, bodyStr, resp.StatusCode); err != nil {
+	if err := r.setVariablesFromResponse(v, result.ResponseContentType, result.ResponseBody, result.ResponseStatusCode); err != nil {
 		return nil, err
 	}
 
@@ -216,14 +252,14 @@ func (r *Runner) executeTest(v models.TestInterface) (*models.Result, error) {
 	v = r.config.Variables.Apply(v)
 
 	for _, c := range r.checkers {
-		errs, err := c.Check(v, &result)
+		errs, err := c.Check(v, result)
 		if err != nil {
 			return nil, err
 		}
 		result.Errors = append(result.Errors, errs...)
 	}
 
-	return &result, nil
+	return result, nil
 }
 
 func (r *Runner) setVariablesFromResponse(t models.TestInterface, contentType, body string, statusCode int) error {
