@@ -18,16 +18,16 @@ import (
 	"github.com/lamoda/gonkey/models"
 )
 
-// Compile-time interface check (ES-0053).
+// Compile-time interface check
 var _ transportExecutor = (*GrpcTransport)(nil)
 
 // GrpcTransport is a transportExecutor implementation for gRPC calls without proto stubs.
 // It uses grpcurl as a library for dynamic invocations via server reflection or protoset files.
 type GrpcTransport struct {
 	cfg             *Config
-	mu              sync.Mutex        // protects conn
-	conn            *grpc.ClientConn  // protected by mu
-	descSourceCache sync.Map          // key: path string → grpcurl.DescriptorSource (protoset only)
+	mu              sync.Mutex       // protects conn
+	conn            *grpc.ClientConn // protected by mu
+	descSourceCache sync.Map         // key: path string → grpcurl.DescriptorSource (protoset only)
 }
 
 // grpcResponseHandler implements grpcurl.InvocationEventHandler.
