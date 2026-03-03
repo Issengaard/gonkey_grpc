@@ -1,23 +1,20 @@
-- name: "GetUser — success"
+- name: "SayHello — success"
   transport: grpc
-  path: "users.UserService/GetUser"
-  request: |
-    {"id": "123"}
+  path: "helloworld.Greeter/SayHello"
+  request: '{"name": "World"}'
   headers:
     authorization: "Bearer token123"
   proto_source:
     type: reflection
   response:
-    0: |
-      {"user": {"id": "123", "name": "Alice"}}
+    0: '{"message": "Hello, World!"}'  # gRPC: 0 = codes.OK
 
-- name: "GetUser — not found"
+- name: "SayHello — not found"
   transport: grpc
-  path: "users.UserService/GetUser"
-  request: |
-    {"id": "nonexistent"}
+  path: "helloworld.Greeter/SayHello"
+  request: '{"name": "nonexistent"}'
   proto_source:
     type: protoset
     protoset_file: "testdata/service.protoset"
   response:
-    5: '{"message": "user not found"}'
+    5: ''

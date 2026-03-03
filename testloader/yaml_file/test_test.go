@@ -131,12 +131,22 @@ func TestTest_GetProtoSource(t *testing.T) {
 	}{
 		"happy_path": {
 			source: &models.GrpcProtoSource{
-				Type:         "reflection",
+				Type:         models.GrpcProtoSourceTypeReflection,
 				ProtosetFile: "",
 			},
 			want: &models.GrpcProtoSource{
-				Type:         "reflection",
+				Type:         models.GrpcProtoSourceTypeReflection,
 				ProtosetFile: "",
+			},
+		},
+		"protoset_with_file": {
+			source: &models.GrpcProtoSource{
+				Type:         models.GrpcProtoSourceTypeProtoset,
+				ProtosetFile: "testdata/service.protoset",
+			},
+			want: &models.GrpcProtoSource{
+				Type:         models.GrpcProtoSourceTypeProtoset,
+				ProtosetFile: "testdata/service.protoset",
 			},
 		},
 		"nil_proto_source": {
@@ -184,7 +194,7 @@ func TestTest_Clone_ProtoSource(t *testing.T) {
 			input: &Test{
 				TestDefinition: TestDefinition{
 					ProtoSource: &models.GrpcProtoSource{
-						Type:         "reflection",
+						Type:         models.GrpcProtoSourceTypeReflection,
 						ProtosetFile: "",
 					},
 				},
@@ -208,6 +218,47 @@ func TestTest_Clone_ProtoSource(t *testing.T) {
 			verify: func(t *testing.T, original, cloned models.TestInterface) {
 				clonedTest := cloned.(*Test)
 				assert.Nil(t, clonedTest.ProtoSource)
+			},
+		},
+		"variables_to_set_deep_copy": {
+			input: &Test{
+				TestDefinition: TestDefinition{
+					VariablesToSet: VariablesToSet{
+						200: {"token": "abc"},
+					},
+				},
+			},
+			verify: func(t *testing.T, original, cloned models.TestInterface) {
+				origTest := original.(*Test)
+				clonedTest := cloned.(*Test)
+				require.NotNil(t, clonedTest.VariablesToSet)
+				assert.NotSame(t, &origTest.VariablesToSet, &clonedTest.VariablesToSet)
+				innerOrig := origTest.VariablesToSet[200]
+				innerCloned := clonedTest.VariablesToSet[200]
+				assert.NotSame(t, &innerOrig, &innerCloned)
+				assert.Equal(t, innerOrig, innerCloned)
+			},
+		},
+		"response_headers_deep_copy": {
+			input: &Test{
+				TestDefinition: TestDefinition{
+					ResponseHeaders: map[int]map[string]string{
+						200: {"x-request-id": "123"},
+					},
+				},
+				ResponseHeaders: map[int]map[string]string{
+					200: {"x-trace-id": "456"},
+				},
+			},
+			verify: func(t *testing.T, original, cloned models.TestInterface) {
+				origTest := original.(*Test)
+				clonedTest := cloned.(*Test)
+				// TestDefinition.ResponseHeaders
+				require.NotNil(t, clonedTest.TestDefinition.ResponseHeaders)
+				assert.Equal(t, origTest.TestDefinition.ResponseHeaders, clonedTest.TestDefinition.ResponseHeaders)
+				// Test.ResponseHeaders
+				require.NotNil(t, clonedTest.ResponseHeaders)
+				assert.Equal(t, origTest.ResponseHeaders, clonedTest.ResponseHeaders)
 			},
 		},
 	}

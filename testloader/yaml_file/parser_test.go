@@ -58,31 +58,35 @@ var testsYAMLData = `
         newVar: some_value
 `
 
+func writeTempYAML(t *testing.T, content string) string {
+	t.Helper()
+
+	f, err := os.CreateTemp(t.TempDir(), "gonkey-test-*.yaml")
+	require.NoError(t, err)
+
+	_, err = fmt.Fprint(f, content)
+	require.NoError(t, err)
+
+	return f.Name()
+}
+
 func TestParseTestsWithCases(t *testing.T) {
-	tmpfile, err := os.CreateTemp("../..", "tmpfile_")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(tmpfile.Name())
+	t.Parallel()
 
-	if _, err := fmt.Fprint(tmpfile, testsYAMLData); err != nil {
-		t.Fatal(err)
-	}
+	path := writeTempYAML(t, testsYAMLData)
 
-	tests, err := parseTestDefinitionFile(tmpfile.Name())
-	if err != nil {
-		t.Error(err)
-	}
+	tests, err := parseTestDefinitionFile(path)
+	require.NoError(t, err)
 	if len(tests) != 2 {
 		t.Errorf("wait len(tests) == 2, got len(tests) == %d", len(tests))
 	}
 }
 
 func TestParseTestsWithFixtures(t *testing.T) {
+	t.Parallel()
+
 	tests, err := parseTestDefinitionFile("./testdata/with-fixtures.yaml")
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	assert.Equal(t, 2, len(tests))
 
@@ -97,30 +101,146 @@ func TestParseTestsWithFixtures(t *testing.T) {
 }
 
 func TestParseTestsWithDbChecks(t *testing.T) {
+	t.Parallel()
+
 	tests, err := parseTestDefinitionFile("./testdata/with-db-checks.yaml")
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	assert.Equal(t, 2, len(tests))
 	assert.Equal(t, "", tests[0].GetDatabaseChecks()[0].DbNameString())
 	assert.Equal(t, "connection_name", tests[1].GetDatabaseChecks()[0].DbNameString())
 }
 
-func TestParseGrpcFields(t *testing.T) {
-	tests, err := parseTestDefinitionFile("./testdata/grpc-test.yaml")
+func TestParser_ParseGrpcTest(t *testing.T) {
+	t.Parallel()
+
+	parsedTests, err := parseTestDefinitionFile("testdata/grpc-test.yaml")
 	require.NoError(t, err)
-	require.Len(t, tests, 2)
+	require.Len(t, parsedTests, 2)
 
-	// first test: reflection
-	assert.Equal(t, "grpc", tests[0].GetTransport())
-	require.NotNil(t, tests[0].GetProtoSource())
-	assert.Equal(t, models.GrpcProtoSourceTypeReflection, tests[0].GetProtoSource().Type)
-	assert.Equal(t, "", tests[0].GetProtoSource().ProtosetFile)
+	cases := map[string]struct {
+		testIdx int
+		verify  func(t *testing.T, test *Test)
+	}{
+		"happy_path": {
+			testIdx: 0,
+			verify: func(t *testing.T, test *Test) {
+				assert.Equal(t, "grpc", test.GetTransport())
+				assert.Equal(t, "helloworld.Greeter/SayHello", test.Path())
+				assert.Equal(t, `{"name": "World"}`, test.GetRequest())
+				require.NotNil(t, test.GetProtoSource())
+				assert.Equal(t, models.GrpcProtoSourceTypeReflection, test.GetProtoSource().Type)
+				assert.Equal(t, "Bearer token123", test.Headers()["authorization"])
+				body, ok := test.GetResponse(0)
+				require.True(t, ok)
+				assert.Equal(t, `{"message": "Hello, World!"}`, body)
+			},
+		},
+		"protoset_with_file": {
+			testIdx: 1,
+			verify: func(t *testing.T, test *Test) {
+				assert.Equal(t, "grpc", test.GetTransport())
+				require.NotNil(t, test.GetProtoSource())
+				assert.Equal(t, models.GrpcProtoSourceTypeProtoset, test.GetProtoSource().Type)
+				assert.Equal(t, "testdata/service.protoset", test.GetProtoSource().ProtosetFile)
+				body, ok := test.GetResponse(5)
+				require.True(t, ok)
+				assert.Equal(t, "", body)
+				assert.Empty(t, test.Headers())
+			},
+		},
+	}
 
-	// second test: protoset
-	assert.Equal(t, "grpc", tests[1].GetTransport())
-	require.NotNil(t, tests[1].GetProtoSource())
-	assert.Equal(t, models.GrpcProtoSourceTypeProtoset, tests[1].GetProtoSource().Type)
-	assert.Equal(t, "testdata/service.protoset", tests[1].GetProtoSource().ProtosetFile)
+	for name, tc := range cases {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			tc.verify(t, &parsedTests[tc.testIdx])
+		})
+	}
+}
+
+func TestParser_ParseGrpcTest_Errors(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		yamlContent string
+		filePath    string
+		wantErr     string
+	}{
+		"empty_protoset_file": {
+			yamlContent: "- name: test\n  transport: grpc\n  path: svc/Method\n  proto_source:\n    type: protoset\n  response:\n    0: \"{}\"\n",
+			wantErr:     "protoset_file is not set",
+		},
+		"missing_protoset_file": {
+			filePath: "testdata/grpc-test-missing-protoset.yaml",
+			wantErr:  "nonexistent.protoset",
+		},
+		"unknown_proto_source_type": {
+			yamlContent: "- name: test\n  transport: grpc\n  path: svc/Method\n  proto_source:\n    type: unknown_type\n  response:\n    0: \"{}\"\n",
+			wantErr:     "unknown proto_source type",
+		},
+	}
+
+	for name, tc := range cases {
+		tc := tc
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var path string
+			if tc.yamlContent != "" {
+				path = writeTempYAML(t, tc.yamlContent)
+			} else {
+				path = tc.filePath
+			}
+
+			_, err := parseTestDefinitionFile(path)
+			require.Error(t, err)
+			assert.ErrorContains(t, err, tc.wantErr)
+		})
+	}
+}
+
+func TestParser_ParseGrpcTest_Clone(t *testing.T) {
+	t.Parallel()
+
+	parsedTests, err := parseTestDefinitionFile("testdata/grpc-test.yaml")
+	require.NoError(t, err)
+	require.Len(t, parsedTests, 2)
+
+	original := &parsedTests[0]
+	cloned := original.Clone().(*Test)
+
+	require.NotNil(t, cloned.GetProtoSource())
+	assert.NotSame(t, original.GetProtoSource(), cloned.GetProtoSource())
+	assert.Equal(t, *original.GetProtoSource(), *cloned.GetProtoSource())
+}
+
+func TestParser_ParseHttpTest(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		file   string
+		verify func(t *testing.T, tests []Test)
+	}{
+		"happy_path": {
+			file: "testdata/with-fixtures.yaml",
+			verify: func(t *testing.T, tests []Test) {
+				require.NotEmpty(t, tests)
+				assert.Equal(t, "", tests[0].GetTransport())
+				assert.Nil(t, tests[0].GetProtoSource())
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			parsedTests, err := parseTestDefinitionFile(tc.file)
+			require.NoError(t, err)
+			tc.verify(t, parsedTests)
+		})
+	}
 }

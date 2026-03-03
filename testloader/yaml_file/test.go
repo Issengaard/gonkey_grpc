@@ -51,9 +51,6 @@ func (t *Test) Path() string {
 	return t.RequestURL
 }
 
-func (t *Test) GetTransport() string                    { return t.Transport }
-func (t *Test) GetProtoSource() *models.GrpcProtoSource { return t.ProtoSource }
-
 func (t *Test) GetRequest() string {
 	return t.Request
 }
@@ -281,3 +278,6 @@ func (t *Test) SetStatus(status string) {
 func (t *Test) GetAllureMetadata() *models.AllureMetadata {
 	return t.Allure
 }
+
+func (t *Test) GetTransport() string                    { return t.Transport }
+func (t *Test) GetProtoSource() *models.GrpcProtoSource { return t.ProtoSource }
