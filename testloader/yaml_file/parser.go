@@ -44,7 +44,31 @@ func parseTestDefinitionFile(absPath string) ([]Test, error) {
 		tests = append(tests, testCases...)
 	}
 
+	if err := validateProtoSources(tests); err != nil {
+		return nil, fmt.Errorf("%s: %w", absPath, err)
+	}
+
 	return tests, nil
+}
+
+// validateProtoSources checks that protoset files referenced in tests actually exist.
+func validateProtoSources(tests []Test) error {
+	for _, test := range tests {
+		src := test.GetProtoSource()
+		if src == nil || src.Type != "protoset" {
+			continue
+		}
+
+		if src.ProtosetFile == "" {
+			return fmt.Errorf("test %q: proto_source type is \"protoset\" but protoset_file is not set", test.Name)
+		}
+
+		if _, err := os.Stat(src.ProtosetFile); err != nil {
+			return fmt.Errorf("test %q: protoset_file %q: %w", test.Name, src.ProtosetFile, err)
+		}
+	}
+
+	return nil
 }
 
 func substituteArgs(tmpl string, args map[string]interface{}) (string, error) {

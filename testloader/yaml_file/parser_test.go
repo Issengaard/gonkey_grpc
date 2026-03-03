@@ -156,6 +156,14 @@ func TestParser_ParseGrpcTest(t *testing.T) {
 	}
 }
 
+func TestParser_ParseGrpcTest_MissingProtoset(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseTestDefinitionFile("testdata/grpc-test-missing-protoset.yaml")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nonexistent.protoset")
+}
+
 func TestParser_ParseGrpcTest_Clone(t *testing.T) {
 	t.Parallel()
 
