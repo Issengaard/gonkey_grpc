@@ -271,12 +271,12 @@ func (r *Runner) setVariablesFromResponse(t models.TestInterface, result *models
 	var statusCode int
 	var isJSON bool
 
+	statusCode = result.ResponseStatusCode
+	isJSON = strings.Contains(result.ResponseContentType, "json") && result.ResponseBody != ""
+
 	if t.GetTransport() == "grpc" {
 		statusCode = result.GrpcStatusCode
 		isJSON = result.ResponseBody != ""
-	} else {
-		statusCode = result.ResponseStatusCode
-		isJSON = strings.Contains(result.ResponseContentType, "json") && result.ResponseBody != ""
 	}
 
 	vars, err := variables.FromResponse(varTemplates[statusCode], result.ResponseBody, isJSON)
