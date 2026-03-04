@@ -14,6 +14,7 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/lamoda/gonkey/checker"
+	"github.com/lamoda/gonkey/checker/grpc_response"
 	"github.com/lamoda/gonkey/checker/response_body"
 	"github.com/lamoda/gonkey/checker/response_db"
 	"github.com/lamoda/gonkey/checker/response_header"
@@ -162,6 +163,7 @@ func initRunner(
 }
 
 func addCheckers(runner *Runner, params *RunWithTestingParams) {
+	runner.AddCheckers(grpc_response.NewChecker())
 	runner.AddCheckers(response_body.NewChecker())
 	runner.AddCheckers(response_header.NewChecker())
 
