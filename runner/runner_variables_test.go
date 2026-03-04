@@ -21,7 +21,7 @@ func TestRunner_setVariablesFromResponse(t *testing.T) {
 		wantVarValue string
 		wantErr      bool
 	}{
-		"grpc_uses_grpc_status_code_as_key": {
+		"happy_path": {
 			test: &yaml_file.Test{
 				TestDefinition: yaml_file.TestDefinition{
 					Transport: "grpc",
@@ -105,7 +105,6 @@ func TestRunner_setVariablesFromResponse(t *testing.T) {
 func getVarValue(t *testing.T, vars *variables.Variables, name string) string {
 	t.Helper()
 
-	// Apply variable substitution to extract the value
 	result := vars.Apply(&yaml_file.Test{
 		Request: "{{ $" + name + " }}",
 	})

@@ -77,35 +77,57 @@ func TestParseTestsWithCombinedVariables(t *testing.T) {
 func TestApply_GrpcTest(t *testing.T) {
 	t.Parallel()
 
-	testOriginal := &Test{
-		TestDefinition: TestDefinition{
-			Transport:  "grpc",
-			RequestURL: "users.UserService/GetUser",
-			HeadersVal: map[string]string{"authorization": "Bearer {{ $token }}"},
+	tests := map[string]struct {
+		original     *Test
+		loadVars     map[string]string
+		wantRequest  string
+		wantHeaders  map[string]string
+		wantPath     string
+		wantOrigReq  string
+		wantOrigHdr  map[string]string
+		wantOrigPath string
+	}{
+		"happy_path": {
+			original: &Test{
+				TestDefinition: TestDefinition{
+					Transport:  "grpc",
+					RequestURL: "users.UserService/GetUser",
+					HeadersVal: map[string]string{"authorization": "Bearer {{ $token }}"},
+				},
+				Request: `{"id": "{{ $userId }}"}`,
+			},
+			loadVars: map[string]string{
+				"userId": "user-123",
+				"token":  "secret-token",
+			},
+			wantRequest:  `{"id": "user-123"}`,
+			wantHeaders:  map[string]string{"authorization": "Bearer secret-token"},
+			wantPath:     "users.UserService/GetUser",
+			wantOrigReq:  `{"id": "{{ $userId }}"}`,
+			wantOrigHdr:  map[string]string{"authorization": "Bearer {{ $token }}"},
+			wantOrigPath: "users.UserService/GetUser",
 		},
-		Request: `{"id": "{{ $userId }}"}`,
 	}
 
-	vars := variables.New()
-	vars.Load(map[string]string{
-		"userId": "user-123",
-		"token":  "secret-token",
-	})
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-	testApplied := vars.Apply(testOriginal)
+			vars := variables.New()
+			vars.Load(tc.loadVars)
 
-	// Оригинал не изменён (Clone корректен)
-	assert.Equal(t, `{"id": "{{ $userId }}"}`, testOriginal.GetRequest())
-	assert.Equal(t, map[string]string{"authorization": "Bearer {{ $token }}"}, testOriginal.Headers())
-	assert.Equal(t, "users.UserService/GetUser", testOriginal.Path())
+			testApplied := vars.Apply(tc.original)
 
-	// Apply() подставил переменные через существующий механизм
-	assert.Equal(t, `{"id": "user-123"}`, testApplied.GetRequest())
-	assert.Equal(t, map[string]string{"authorization": "Bearer secret-token"}, testApplied.Headers())
-	assert.Equal(t, "users.UserService/GetUser", testApplied.Path())
+			assert.Equal(t, tc.wantOrigReq, tc.original.GetRequest())
+			assert.Equal(t, tc.wantOrigHdr, tc.original.Headers())
+			assert.Equal(t, tc.wantOrigPath, tc.original.Path())
 
-	// Transport сохранён
-	assert.Equal(t, "grpc", testApplied.GetTransport())
+			assert.Equal(t, tc.wantRequest, testApplied.GetRequest())
+			assert.Equal(t, tc.wantHeaders, testApplied.Headers())
+			assert.Equal(t, tc.wantPath, testApplied.Path())
+			assert.Equal(t, "grpc", testApplied.GetTransport())
+		})
+	}
 }
 
 func checkOriginal(t *testing.T, test models.TestInterface, combined bool) {
