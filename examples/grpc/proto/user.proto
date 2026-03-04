@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package example;
+
+option go_package = "github.com/lamoda/gonkey/examples/grpc/proto";
+
+//go:generate protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative user.proto
+
+message GetUserRequest {
+  string id = 1;
+}
+
+message GetUserResponse {
+  message User {
+    string id = 1;
+    string name = 2;
+  }
+  User user = 1;
+}
+
+service UserService {
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+}

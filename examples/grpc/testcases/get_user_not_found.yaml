@@ -1,0 +1,8 @@
+- name: "GetUser — not found (codes.NotFound)"
+  transport: grpc
+  path: "example.UserService/GetUser"
+  request: '{"id": "nonexistent"}'
+  proto_source:
+    type: reflection
+  response:
+    5: '{"message": "user \"nonexistent\" not found"}'

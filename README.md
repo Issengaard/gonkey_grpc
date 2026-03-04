@@ -24,6 +24,7 @@ Capabilities:
   - [Test status](#test-status)
   - [HTTP-request](#http-request)
   - [HTTP-response](#http-response)
+  - [gRPC Testing](#grpc-testing)
   - [Variables](#variables)
     - [Assignment](#assignment)
       - [In the description of the test](#in-the-description-of-the-test)
@@ -424,6 +425,68 @@ These labels are used for TestIT integration and help organize tests by componen
 `response` - the HTTP response body for the specified HTTP status codes.
 
 `responseHeaders` - all HTTP response headers for the specified HTTP status codes.
+
+## gRPC Testing
+
+Gonkey supports testing gRPC services using the same YAML format as HTTP tests.
+
+### Example
+
+```yaml
+- name: "GetUser — success"
+  transport: grpc
+  path: "users.UserService/GetUser"
+  request: '{"id": "123"}'
+  proto_source:
+    type: reflection   # or "protoset" with protoset_file: path/to/file.protoset
+  response:
+    0: '{"user": {"id": "123", "name": "Alice"}}'  # key = gRPC status code (0=OK)
+```
+
+### Request Fields
+
+| Field         | Type   | Description                                       |
+|---------------|--------|---------------------------------------------------|
+| `transport`   | string | Set to `grpc` to enable gRPC transport            |
+| `path`        | string | Fully qualified method: `package.Service/Method`  |
+| `request`     | string | JSON-encoded request message body                 |
+| `headers`     | map    | gRPC metadata (key-value pairs)                   |
+| `proto_source`| object | Schema source: `type: reflection` or `type: protoset` with `protoset_file` |
+
+### Response Format
+
+| Field                  | Description                                      |
+|------------------------|--------------------------------------------------|
+| `response: {0: '...'}` | Expected body for gRPC status OK (0)             |
+| `response: {5: '...'}` | Expected body for gRPC status NotFound (5)       |
+
+At non-OK status, response body is `{"message": "<status message>"}`.
+
+### Variables Extraction from gRPC Response
+
+Use `variables_to_set` with gRPC status code as key (0 = OK):
+
+```yaml
+variables_to_set:
+  0:
+    userName: "user.name"
+```
+
+### Using gonkey as a library with gRPC
+
+```go
+func TestGrpc(t *testing.T) {
+    // start your gRPC server
+    addr := startGrpcServer(t) // returns "host:port"
+
+    runner.RunWithTesting(t, &runner.RunWithTestingParams{
+        GrpcHost: addr,
+        TestsDir: "testcases",
+    })
+}
+```
+
+See `examples/grpc/` for a complete working example.
 
 ## Variables
 
