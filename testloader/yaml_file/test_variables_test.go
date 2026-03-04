@@ -74,6 +74,62 @@ func TestParseTestsWithCombinedVariables(t *testing.T) {
 	checkApplied(t, testApplied, true)
 }
 
+func TestApply_GrpcTest(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		original     *Test
+		loadVars     map[string]string
+		wantRequest  string
+		wantHeaders  map[string]string
+		wantPath     string
+		wantOrigReq  string
+		wantOrigHdr  map[string]string
+		wantOrigPath string
+	}{
+		"happy_path": {
+			original: &Test{
+				TestDefinition: TestDefinition{
+					Transport:  "grpc",
+					RequestURL: "users.UserService/GetUser",
+					HeadersVal: map[string]string{"authorization": "Bearer {{ $token }}"},
+				},
+				Request: `{"id": "{{ $userId }}"}`,
+			},
+			loadVars: map[string]string{
+				"userId": "user-123",
+				"token":  "secret-token",
+			},
+			wantRequest:  `{"id": "user-123"}`,
+			wantHeaders:  map[string]string{"authorization": "Bearer secret-token"},
+			wantPath:     "users.UserService/GetUser",
+			wantOrigReq:  `{"id": "{{ $userId }}"}`,
+			wantOrigHdr:  map[string]string{"authorization": "Bearer {{ $token }}"},
+			wantOrigPath: "users.UserService/GetUser",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			vars := variables.New()
+			vars.Load(tc.loadVars)
+
+			testApplied := vars.Apply(tc.original)
+
+			assert.Equal(t, tc.wantOrigReq, tc.original.GetRequest())
+			assert.Equal(t, tc.wantOrigHdr, tc.original.Headers())
+			assert.Equal(t, tc.wantOrigPath, tc.original.Path())
+
+			assert.Equal(t, tc.wantRequest, testApplied.GetRequest())
+			assert.Equal(t, tc.wantHeaders, testApplied.Headers())
+			assert.Equal(t, tc.wantPath, testApplied.Path())
+			assert.Equal(t, "grpc", testApplied.GetTransport())
+		})
+	}
+}
+
 func checkOriginal(t *testing.T, test models.TestInterface, combined bool) {
 
 	t.Helper()

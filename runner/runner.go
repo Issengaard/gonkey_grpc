@@ -244,7 +244,7 @@ func (r *Runner) executeTest(v models.TestInterface) (*models.Result, error) {
 		result.Errors = append(result.Errors, errs...)
 	}
 
-	if err := r.setVariablesFromResponse(v, result.ResponseContentType, result.ResponseBody, result.ResponseStatusCode); err != nil {
+	if err := r.setVariablesFromResponse(v, result); err != nil {
 		return nil, err
 	}
 
@@ -262,15 +262,24 @@ func (r *Runner) executeTest(v models.TestInterface) (*models.Result, error) {
 	return result, nil
 }
 
-func (r *Runner) setVariablesFromResponse(t models.TestInterface, contentType, body string, statusCode int) error {
+func (r *Runner) setVariablesFromResponse(t models.TestInterface, result *models.Result) error {
 	varTemplates := t.GetVariablesToSet()
 	if varTemplates == nil {
 		return nil
 	}
 
-	isJSON := strings.Contains(contentType, "json") && body != ""
+	var statusCode int
+	var isJSON bool
 
-	vars, err := variables.FromResponse(varTemplates[statusCode], body, isJSON)
+	if t.GetTransport() == "grpc" {
+		statusCode = result.GrpcStatusCode
+		isJSON = result.ResponseBody != ""
+	} else {
+		statusCode = result.ResponseStatusCode
+		isJSON = strings.Contains(result.ResponseContentType, "json") && result.ResponseBody != ""
+	}
+
+	vars, err := variables.FromResponse(varTemplates[statusCode], result.ResponseBody, isJSON)
 	if err != nil {
 		return err
 	}
