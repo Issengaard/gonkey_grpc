@@ -32,10 +32,6 @@ import (
 
 const bufSize = 1024 * 1024
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 // newBufconnServer starts a gRPC server over bufconn and returns the listener.
 // The server is stopped via t.Cleanup.
 func newBufconnServer(t *testing.T, register func(*grpc.Server)) *bufconn.Listener {
@@ -107,10 +103,6 @@ func writeTestProtoset(t *testing.T) string {
 
 	return f.Name()
 }
-
-// ---------------------------------------------------------------------------
-// TestGrpcTransport_buildDescriptorSource
-// ---------------------------------------------------------------------------
 
 func TestGrpcTransport_buildDescriptorSource(t *testing.T) {
 	t.Parallel()
@@ -194,10 +186,6 @@ func TestGrpcTransport_buildDescriptorSource(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// TestGrpcTransport_Execute
-// ---------------------------------------------------------------------------
 
 func TestGrpcTransport_Execute(t *testing.T) {
 	t.Parallel()
