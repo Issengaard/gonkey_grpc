@@ -9,7 +9,7 @@ import (
 	"github.com/lamoda/gonkey/models"
 )
 
-// Compile-time interface check (ES-0053).
+// Compile-time interface check.
 var _ transportExecutor = (*HttpTransport)(nil)
 
 type HttpTransport struct {

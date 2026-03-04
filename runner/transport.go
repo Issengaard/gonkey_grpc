@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/lamoda/gonkey/models"
 )
@@ -17,7 +18,7 @@ type transportExecutor interface {
 func newTransportExecutor(test models.TestInterface, cfg *Config) (transportExecutor, error) {
 	switch test.GetTransport() {
 	case "":
-		fmt.Printf("WARN: transport field is empty, defaulting to HTTP. Set transport: http explicitly.\n")
+		fmt.Fprintf(os.Stderr, "WARN: transport field is empty, defaulting to HTTP. Set transport: http explicitly.\n")
 
 		return newHttpTransport(cfg), nil
 	case "http":
