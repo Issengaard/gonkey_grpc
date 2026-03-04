@@ -74,6 +74,40 @@ func TestParseTestsWithCombinedVariables(t *testing.T) {
 	checkApplied(t, testApplied, true)
 }
 
+func TestApply_GrpcTest(t *testing.T) {
+	t.Parallel()
+
+	testOriginal := &Test{
+		TestDefinition: TestDefinition{
+			Transport:  "grpc",
+			RequestURL: "users.UserService/GetUser",
+			HeadersVal: map[string]string{"authorization": "Bearer {{ $token }}"},
+		},
+		Request: `{"id": "{{ $userId }}"}`,
+	}
+
+	vars := variables.New()
+	vars.Load(map[string]string{
+		"userId": "user-123",
+		"token":  "secret-token",
+	})
+
+	testApplied := vars.Apply(testOriginal)
+
+	// Оригинал не изменён (Clone корректен)
+	assert.Equal(t, `{"id": "{{ $userId }}"}`, testOriginal.GetRequest())
+	assert.Equal(t, map[string]string{"authorization": "Bearer {{ $token }}"}, testOriginal.Headers())
+	assert.Equal(t, "users.UserService/GetUser", testOriginal.Path())
+
+	// Apply() подставил переменные через существующий механизм
+	assert.Equal(t, `{"id": "user-123"}`, testApplied.GetRequest())
+	assert.Equal(t, map[string]string{"authorization": "Bearer secret-token"}, testApplied.Headers())
+	assert.Equal(t, "users.UserService/GetUser", testApplied.Path())
+
+	// Transport сохранён
+	assert.Equal(t, "grpc", testApplied.GetTransport())
+}
+
 func checkOriginal(t *testing.T, test models.TestInterface, combined bool) {
 
 	t.Helper()
