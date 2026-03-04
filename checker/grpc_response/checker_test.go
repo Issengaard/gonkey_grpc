@@ -145,8 +145,6 @@ func TestGrpcResponseChecker_Check(t *testing.T) {
 	checker := NewChecker()
 
 	for name, tc := range tests {
-		tc := tc
-
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
