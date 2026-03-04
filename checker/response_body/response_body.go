@@ -18,6 +18,10 @@ func NewChecker() checker.CheckerInterface {
 }
 
 func (c *ResponseBodyChecker) Check(t models.TestInterface, result *models.Result) ([]error, error) {
+	if t.GetTransport() == "grpc" {
+		return nil, nil
+	}
+
 	var errs []error
 	var foundResponse bool
 	if expectedBody, ok := t.GetResponse(result.ResponseStatusCode); ok {

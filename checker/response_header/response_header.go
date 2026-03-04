@@ -15,6 +15,10 @@ func NewChecker() checker.CheckerInterface {
 }
 
 func (c *ResponseHeaderChecker) Check(t models.TestInterface, result *models.Result) ([]error, error) {
+	if t.GetTransport() == "grpc" {
+		return nil, nil
+	}
+
 	expectedHeaders, ok := t.GetResponseHeaders(result.ResponseStatusCode)
 	if !ok || len(expectedHeaders) == 0 {
 		return nil, nil
