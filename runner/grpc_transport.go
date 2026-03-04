@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/fullstorydev/grpcurl"
-	gogoproto "github.com/golang/protobuf/proto" //nolint:staticcheck // deprecated package, required for grpcurl InvocationEventHandler interface
+	gogoproto "github.com/golang/protobuf/proto" //nolint:staticcheck // deprecated package, required by grpcurl InvocationEventHandler
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/grpcreflect"
 	"google.golang.org/grpc"
@@ -18,34 +18,45 @@ import (
 	"github.com/lamoda/gonkey/models"
 )
 
-// Compile-time interface check
 var _ transportExecutor = (*GrpcTransport)(nil)
+var _ grpcurl.InvocationEventHandler = (*grpcResponseHandler)(nil)
 
 // GrpcTransport is a transportExecutor implementation for gRPC calls without proto stubs.
 // It uses grpcurl as a library for dynamic invocations via server reflection or protoset files.
 type GrpcTransport struct {
 	cfg             *Config
-	mu              sync.Mutex       // protects conn
-	conn            *grpc.ClientConn // protected by mu
-	descSourceCache sync.Map         // key: path string → grpcurl.DescriptorSource (protoset only)
+	connMu          sync.RWMutex
+	conn            *grpc.ClientConn
+	descSourceCache sync.Map // key: path string → grpcurl.DescriptorSource (protoset only)
 }
 
 // grpcResponseHandler implements grpcurl.InvocationEventHandler.
-// It collects the JSON-serialised response body and trailing metadata.
+// It collects the JSON-serialised response body, the server-side gRPC status,
+// and trailing metadata.
 type grpcResponseHandler struct {
-	out       *strings.Builder
-	formatter grpcurl.Formatter
-	trailers  metadata.MD
-	formatErr error
+	out        *strings.Builder
+	formatter  grpcurl.Formatter
+	trailers   metadata.MD
+	grpcStatus *status.Status // captured from OnReceiveTrailers; may be nil if call never reached the server
+	formatErr  error
 }
 
+// newGrpcTransport creates a GrpcTransport for the given config.
 func newGrpcTransport(cfg *Config) *GrpcTransport {
 	return &GrpcTransport{cfg: cfg}
 }
 
 func (t *GrpcTransport) getConn() (*grpc.ClientConn, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.connMu.RLock()
+	conn := t.conn
+	t.connMu.RUnlock()
+
+	if conn != nil {
+		return conn, nil
+	}
+
+	t.connMu.Lock()
+	defer t.connMu.Unlock()
 
 	if t.conn != nil {
 		return t.conn, nil
@@ -66,11 +77,14 @@ func (t *GrpcTransport) getConn() (*grpc.ClientConn, error) {
 
 // Close closes the persistent gRPC connection.
 func (t *GrpcTransport) Close() error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.connMu.Lock()
+	defer t.connMu.Unlock()
 
 	if t.conn != nil {
-		return t.conn.Close()
+		err := t.conn.Close()
+		t.conn = nil
+
+		return err
 	}
 
 	return nil
@@ -88,12 +102,6 @@ func (t *GrpcTransport) Execute(ctx context.Context, test models.TestInterface) 
 		return nil, fmt.Errorf("descriptor source: %w", err)
 	}
 
-	if md := test.Headers(); len(md) > 0 {
-		ctx = metadata.NewOutgoingContext(ctx, metadata.New(md))
-	}
-
-	methodName := "/" + test.Path()
-
 	rf, formatter, err := grpcurl.RequestParserAndFormatterFor(
 		grpcurl.FormatJSON,
 		descSource,
@@ -105,48 +113,93 @@ func (t *GrpcTransport) Execute(ctx context.Context, test models.TestInterface) 
 		return nil, fmt.Errorf("parse grpc request: %w", err)
 	}
 
-	var responseBody strings.Builder
-	h := &grpcResponseHandler{out: &responseBody, formatter: formatter}
+	var body strings.Builder
+	h := &grpcResponseHandler{out: &body, formatter: formatter}
 
-	invokeErr := grpcurl.InvokeRPC(ctx, descSource, conn, methodName, nil, h, rf.Next)
-
+	invokeErr := grpcurl.InvokeRPC(ctx, descSource, conn, test.Path(), buildGrpcHeaders(test.Headers()), h, rf.Next)
 	if h.formatErr != nil {
 		return nil, fmt.Errorf("format grpc response: %w", h.formatErr)
 	}
 
-	grpcStatus, ok := status.FromError(invokeErr)
+	grpcStatus, err := resolveGrpcStatus(h, invokeErr)
+	if err != nil {
+		return nil, err
+	}
+
+	return buildGrpcResult(test, body.String(), grpcStatus, h.trailers), nil
+}
+
+func buildGrpcHeaders(headers map[string]string) []string {
+	out := make([]string, 0, len(headers))
+	for k, v := range headers {
+		out = append(out, k+": "+v)
+	}
+
+	return out
+}
+
+// resolveGrpcStatus extracts a gRPC status from the handler or the invocation error.
+// When the call reaches the server, the handler captures the status via OnReceiveTrailers.
+// For pre-flight failures (symbol resolution, descriptor errors) the status is extracted
+// from invokeErr via status.FromError.
+func resolveGrpcStatus(h *grpcResponseHandler, invokeErr error) (*status.Status, error) {
+	if h.grpcStatus != nil {
+		return h.grpcStatus, nil
+	}
+
+	st, ok := status.FromError(invokeErr)
 	if !ok {
 		return nil, invokeErr
 	}
 
-	result := &models.Result{
-		Test:              test,
-		GrpcStatusCode:    int(grpcStatus.Code()),
-		GrpcStatusMessage: grpcStatus.Message(),
-	}
-
-	// For non-OK status codes, wrap the message in a JSON object.
-	if grpcStatus.Code() != 0 {
-		result.ResponseBody = fmt.Sprintf(`{"message": %q}`, grpcStatus.Message())
-	} else {
-		result.ResponseBody = responseBody.String()
-	}
-
-	if h.trailers != nil {
-		result.GrpcTrailers = h.trailers
-	}
-
-	return result, nil
+	return st, nil
 }
 
+func buildGrpcResult(
+	test models.TestInterface,
+	responseBody string,
+	st *status.Status,
+	trailers metadata.MD,
+) *models.Result {
+	result := &models.Result{
+		Test:              test,
+		GrpcStatusCode:    int(st.Code()),
+		GrpcStatusMessage: st.Message(),
+	}
+
+	if st.Code() != 0 {
+		result.ResponseBody = fmt.Sprintf(`{"message": %q}`, st.Message())
+	} else {
+		result.ResponseBody = responseBody
+	}
+
+	if trailers != nil {
+		result.GrpcTrailers = trailers
+	}
+
+	return result
+}
+
+// isReflectionSource reports whether the given proto source should use gRPC server reflection.
+// It returns true for nil sources, "reflection" type, or empty type (backward compatible default).
+func isReflectionSource(ps *models.GrpcProtoSource) bool {
+	return ps == nil || ps.Type == models.GrpcProtoSourceTypeReflection || ps.Type == ""
+}
+
+// buildDescriptorSource returns a grpcurl.DescriptorSource for the given proto source.
+//
+// For reflection sources, a fresh reflection client is created each time because the service
+// schema may evolve between calls; the underlying gRPC connection itself is persistent.
+//
+// For protoset sources, parsed descriptors are cached in descSourceCache. A concurrent first
+// access may parse the same file more than once, but sync.Map.LoadOrStore guarantees only one
+// value is retained. Use singleflight if contention becomes a concern.
 func (t *GrpcTransport) buildDescriptorSource(
 	ctx context.Context,
 	conn *grpc.ClientConn,
 	protoSource *models.GrpcProtoSource,
 ) (grpcurl.DescriptorSource, error) {
-	if protoSource == nil || protoSource.Type == models.GrpcProtoSourceTypeReflection || protoSource.Type == "" {
-		// Reflection client is intentionally not cached per-Execute:
-		// the service schema may evolve between calls; the gRPC connection itself is persistent.
+	if isReflectionSource(protoSource) {
 		refClient := grpcreflect.NewClientAuto(ctx, conn)
 
 		return grpcurl.DescriptorSourceFromServer(ctx, refClient), nil
@@ -154,15 +207,20 @@ func (t *GrpcTransport) buildDescriptorSource(
 
 	if protoSource.Type == models.GrpcProtoSourceTypeProtoset {
 		if cached, ok := t.descSourceCache.Load(protoSource.ProtosetFile); ok {
-			return cached.(grpcurl.DescriptorSource), nil
+			if src, ok := cached.(grpcurl.DescriptorSource); ok {
+				return src, nil
+			}
 		}
 
 		src, err := grpcurl.DescriptorSourceFromProtoSets(protoSource.ProtosetFile)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("load protoset %s: %w", protoSource.ProtosetFile, err)
 		}
 
-		t.descSourceCache.Store(protoSource.ProtosetFile, src)
+		actual, _ := t.descSourceCache.LoadOrStore(protoSource.ProtosetFile, src)
+		if loaded, ok := actual.(grpcurl.DescriptorSource); ok {
+			return loaded, nil
+		}
 
 		return src, nil
 	}
@@ -175,7 +233,7 @@ func (h *grpcResponseHandler) OnSendHeaders(_ metadata.MD)              {}
 func (h *grpcResponseHandler) OnReceiveHeaders(_ metadata.MD)           {}
 
 func (h *grpcResponseHandler) OnReceiveResponse(resp gogoproto.Message) {
-	if h.formatErr != nil { // guard: don't overwrite first error on streaming responses
+	if h.formatErr != nil {
 		return
 	}
 
@@ -189,7 +247,8 @@ func (h *grpcResponseHandler) OnReceiveResponse(resp gogoproto.Message) {
 	h.out.WriteString(body)
 }
 
-func (h *grpcResponseHandler) OnReceiveTrailers(_ *status.Status, md metadata.MD) {
+func (h *grpcResponseHandler) OnReceiveTrailers(stat *status.Status, md metadata.MD) {
+	h.grpcStatus = stat
 	h.trailers = md
 }
 

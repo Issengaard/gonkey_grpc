@@ -1,0 +1,22 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "gRPC testify mock template",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+        "boilerplate-file": {
+            "type": "string"
+        },
+        "mock-build-tags": {
+            "type": "string"
+        },
+        "unroll-variadic": {
+            "type": "boolean"
+        },
+        "grpc-embed": {
+            "type": "boolean",
+            "description": "Embed UnimplementedXxxServer into the mock struct to satisfy gRPC mustEmbedUnimplemented constraint"
+        }
+    },
+    "required": []
+}

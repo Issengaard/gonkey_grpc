@@ -1,0 +1,17 @@
+---
+log-level: error
+
+packages:
+  google.golang.org/grpc/interop/grpc_testing:
+    config:
+      include-auto-generated: true
+      template: "file://templates/mockery/grpc_testify.tmpl"
+      pkgname: grpc_mocks
+      dir: "runner/mocks/grpc_testing"
+      filename: "mock_{{.InterfaceName}}.go"
+      template-data:
+        grpc-embed: true
+    interfaces:
+      TestServiceServer:
+        config:
+          structname: MockTestServiceServer
