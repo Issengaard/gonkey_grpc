@@ -1,0 +1,11 @@
+- name: "GetUser — success"
+  transport: grpc
+  path: "example.UserService/GetUser"
+  request: '{"id": "123"}'
+  proto_source:
+    type: reflection
+  response:
+    0: '{"user": {"id": "123", "name": "Alice"}}'
+  variables_to_set:
+    0:
+      userName: "user.name"

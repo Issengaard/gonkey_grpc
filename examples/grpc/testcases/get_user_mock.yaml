@@ -1,0 +1,8 @@
+- name: "GetUser with mock data"
+  transport: grpc
+  path: "example.UserService/GetUser"
+  request: '{"id": "456"}'
+  proto_source:
+    type: reflection
+  response:
+    0: '{"user": {"id": "456", "name": "Bob"}}'

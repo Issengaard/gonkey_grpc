@@ -9,7 +9,7 @@ Capabilities:
 - works with REST/JSON API
 - tests service API for compliance with OpenAPI-specs
 - seeds the DB with fixtures data (supports PostgreSQL, MySQL, Aerospike, Redis)
-- provides mocks for external services
+- provides mocks for external services (HTTP and gRPC)
 - can be used as a library and ran together with unit-tests
 - stores the results as an [Allure](http://allure.qatools.ru/) report with TMS integration support (TestIT, Allure TestOps)
 - there is a [JSON-schema](#json-schema) to add autocomletion and validation for gonkey YAML files
@@ -24,6 +24,7 @@ Capabilities:
   - [Test status](#test-status)
   - [HTTP-request](#http-request)
   - [HTTP-response](#http-response)
+  - [gRPC Testing](#grpc-testing)
   - [Variables](#variables)
     - [Assignment](#assignment)
       - [In the description of the test](#in-the-description-of-the-test)
@@ -67,6 +68,9 @@ Capabilities:
         - [basedOnRequest](#basedonrequest)
         - [dropRequest](#droprequest)
       - [Calls count](#calls-count)
+  - [gRPC Mocks](#grpc-mocks)
+    - [Running gRPC mocks while using gonkey as a library](#running-grpc-mocks-while-using-gonkey-as-a-library)
+    - [GrpcMock API](#grpcmock-api)
   - [Shell scripts usage](#shell-scripts-usage)
     - [Script definition](#script-definition)
     - [Running a script with parameterization](#running-a-script-with-parameterization)
@@ -424,6 +428,68 @@ These labels are used for TestIT integration and help organize tests by componen
 `response` - the HTTP response body for the specified HTTP status codes.
 
 `responseHeaders` - all HTTP response headers for the specified HTTP status codes.
+
+## gRPC Testing
+
+Gonkey supports testing gRPC services using the same YAML format as HTTP tests.
+
+### Example
+
+```yaml
+- name: "GetUser — success"
+  transport: grpc
+  path: "users.UserService/GetUser"
+  request: '{"id": "123"}'
+  proto_source:
+    type: reflection   # or "protoset" with protoset_file: path/to/file.protoset
+  response:
+    0: '{"user": {"id": "123", "name": "Alice"}}'  # key = gRPC status code (0=OK)
+```
+
+### Request Fields
+
+| Field         | Type   | Description                                       |
+|---------------|--------|---------------------------------------------------|
+| `transport`   | string | Set to `grpc` to enable gRPC transport            |
+| `path`        | string | Fully qualified method: `package.Service/Method`  |
+| `request`     | string | JSON-encoded request message body                 |
+| `headers`     | map    | gRPC metadata (key-value pairs)                   |
+| `proto_source`| object | Schema source: `type: reflection` or `type: protoset` with `protoset_file` |
+
+### Response Format
+
+| Field                  | Description                                      |
+|------------------------|--------------------------------------------------|
+| `response: {0: '...'}` | Expected body for gRPC status OK (0)             |
+| `response: {5: '...'}` | Expected body for gRPC status NotFound (5)       |
+
+At non-OK status, response body is `{"message": "<status message>"}`.
+
+### Variables Extraction from gRPC Response
+
+Use `variables_to_set` with gRPC status code as key (0 = OK):
+
+```yaml
+variables_to_set:
+  0:
+    userName: "user.name"
+```
+
+### Using gonkey as a library with gRPC
+
+```go
+func TestGrpc(t *testing.T) {
+    // start your gRPC server
+    addr := startGrpcServer(t) // returns "host:port"
+
+    runner.RunWithTesting(t, &runner.RunWithTestingParams{
+        GrpcHost: addr,
+        TestsDir: "testcases",
+    })
+}
+```
+
+See `examples/grpc/` for a complete working example.
 
 ## Variables
 
@@ -1690,6 +1756,121 @@ Example:
           filename: responses/books_list.json
   ...
 ```
+
+## gRPC Mocks
+
+To imitate responses from external gRPC services, use `GrpcMock`. It is an embedded gRPC mock server analogous to the HTTP `ServiceMock`.
+
+`GrpcMock` uses `grpc.UnknownServiceHandler` to dynamically handle calls to any proto service without code generation — no `.proto` files or generated stubs are required for the mock itself.
+
+### Running gRPC mocks while using gonkey as a library
+
+Create a mock, register response definitions, and pass its address to the service under test:
+
+```go
+import (
+    grpcmock "github.com/lamoda/gonkey/mocks/grpc"
+    "google.golang.org/grpc/codes"
+)
+
+func TestMyService(t *testing.T) {
+    // create and start the mock server
+    mock := grpcmock.New()
+    require.NoError(t, mock.StartServer("localhost:0"))
+    t.Cleanup(mock.Stop)
+
+    // register a mock response for a gRPC method
+    mock.SetDefinition(&grpcmock.GrpcDefinition{
+        Service:        "payments.PaymentService",
+        Method:         "Charge",
+        Response:       []byte{...},       // raw proto-encoded response bytes
+        ResponseStatus: codes.OK,
+    })
+
+    // use mock.Addr() as the address for the external gRPC dependency
+    addr := mock.Addr() // e.g. "127.0.0.1:54321"
+
+    // configure your service to connect to the mock instead of the real dependency
+    svc := myservice.New(myservice.Config{
+        PaymentServiceAddr: addr,
+    })
+
+    // run tests against your service
+    runner.RunWithTesting(t, &runner.RunWithTestingParams{
+        Server:   httptest.NewServer(svc.Handler()),
+        TestsDir: "testcases",
+    })
+}
+```
+
+Before each test, call `ResetDefinitions()` to clear previous state and register new definitions:
+
+```go
+mock.ResetDefinitions()
+mock.SetDefinition(&grpcmock.GrpcDefinition{
+    Service:        "payments.PaymentService",
+    Method:         "Charge",
+    Response:       nil,
+    ResponseStatus: codes.NotFound,
+})
+```
+
+### GrpcMock API
+
+#### GrpcDefinition
+
+Describes a mock response for a single gRPC method:
+
+| Field             | Type              | Description                                                       |
+|-------------------|-------------------|-------------------------------------------------------------------|
+| `Service`         | `string`          | Fully qualified service name (e.g. `"payments.PaymentService"`)   |
+| `Method`          | `string`          | Method name (e.g. `"Charge"`)                                     |
+| `Response`        | `[]byte`          | Raw proto-encoded response bytes (`nil` for empty response)       |
+| `ResponseStatus`  | `codes.Code`      | gRPC status code (`codes.OK`, `codes.NotFound`, etc.)             |
+| `ExpectedRequest` | `[]byte`          | Expected raw proto bytes of request (`nil` to skip verification)  |
+| `Metadata`        | `map[string]string` | Trailing gRPC metadata to send with the response                |
+
+#### Methods
+
+| Method                | Description                                               |
+|-----------------------|-----------------------------------------------------------|
+| `New()`               | Creates a new `GrpcMock` instance                         |
+| `StartServer(addr)`   | Starts the mock server on the given TCP address           |
+| `Stop()`              | Gracefully stops the server                               |
+| `Addr()`              | Returns the listener address (`"host:port"`)              |
+| `SetDefinition(def)`  | Registers a mock response for `/Service/Method`           |
+| `ResetDefinitions()`  | Clears all definitions, recorded requests, and errors     |
+| `GetRecordedRequests()` | Returns a copy of all recorded incoming requests        |
+| `EndRunningContext()`  | Returns verification errors (e.g. request mismatches)     |
+
+#### Request recording and verification
+
+`GrpcMock` records every incoming request. After the test you can inspect them:
+
+```go
+recorded := mock.GetRecordedRequests()
+assert.Len(t, recorded, 1)
+assert.Equal(t, "/payments.PaymentService/Charge", recorded[0].Method)
+```
+
+If `ExpectedRequest` is set in the definition, the mock automatically verifies that the incoming request bytes match. Mismatches are collected as errors and returned by `EndRunningContext()`:
+
+```go
+mock.SetDefinition(&grpcmock.GrpcDefinition{
+    Service:         "payments.PaymentService",
+    Method:          "Charge",
+    ExpectedRequest: expectedProtoBytes,
+    Response:        responseProtoBytes,
+    ResponseStatus:  codes.OK,
+})
+
+// ... run the test ...
+
+errs := mock.EndRunningContext()
+assert.Empty(t, errs) // fails if request didn't match ExpectedRequest
+```
+
+If a request arrives for a method with no registered definition, the mock returns `codes.Unimplemented`.
 
 ## Shell scripts usage
 

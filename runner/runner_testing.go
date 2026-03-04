@@ -36,6 +36,7 @@ type Aerospike struct {
 
 type RunWithTestingParams struct {
 	Server      *httptest.Server
+	GrpcHost    string
 	TestsDir    string
 	Mocks       *mocks.Mocks
 	FixturesDir string
@@ -145,10 +146,16 @@ func initRunner(
 	yamlLoader := yaml_file.NewLoader(params.TestsDir)
 	yamlLoader.SetFileFilter(os.Getenv("GONKEY_FILE_FILTER"))
 
+	var httpHost string
+	if params.Server != nil {
+		httpHost = params.Server.URL
+	}
+
 	handler := testingHandler{t}
 	runner := New(
 		&Config{
-			Host:           params.Server.URL,
+			Host:           httpHost,
+			GrpcHost:       params.GrpcHost,
 			Mocks:          params.Mocks,
 			MocksLoader:    mocksLoader,
 			FixturesLoader: fixturesLoader,
