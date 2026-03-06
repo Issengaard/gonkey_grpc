@@ -17,13 +17,17 @@ type GrpcMock struct {
 	errors      []error
 }
 
-// New creates a new gRPC mock server.
+// New creates a new gRPC mock server with gRPC reflection enabled.
+// Reflection is backed by protoregistry.GlobalFiles, so any proto-generated
+// Go package imported in the test binary is automatically discoverable.
 func New() *GrpcMock {
 	m := &GrpcMock{}
 	m.server = grpc.NewServer(
 		grpc.UnknownServiceHandler(m.unknownServiceHandler),
-		grpc.ForceServerCodec(rawBytesCodec{}),
+		grpc.ForceServerCodec(smartCodec{}),
 	)
+
+	registerGlobalReflection(m.server)
 
 	return m
 }

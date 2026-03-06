@@ -6,7 +6,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	pb "github.com/lamoda/gonkey/examples/grpc/proto"
+	pb "github.com/Issengaard/gonkey_grpc/examples/grpc/proto"
 )
 
 // UserService is a minimal UserService implementation for testing.

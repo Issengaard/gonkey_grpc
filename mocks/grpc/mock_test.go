@@ -37,7 +37,7 @@ func dialBufconn(t *testing.T, lis *bufconn.Listener) *grpc.ClientConn {
 			return lis.DialContext(ctx)
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(grpc.ForceCodec(rawBytesCodec{})),
+		grpc.WithDefaultCallOptions(grpc.ForceCodec(smartCodec{})),
 	)
 	require.NoError(t, err)
 

@@ -12,12 +12,12 @@ import (
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/test/bufconn"
 
-	"github.com/lamoda/gonkey/examples/grpc/server"
-	"github.com/lamoda/gonkey/models"
+	"github.com/Issengaard/gonkey_grpc/examples/grpc/server"
+	"github.com/Issengaard/gonkey_grpc/models"
 
-	grpcchecker "github.com/lamoda/gonkey/checker/grpc_response"
-	pb "github.com/lamoda/gonkey/examples/grpc/proto"
-	grpcmock "github.com/lamoda/gonkey/mocks/grpc"
+	grpcchecker "github.com/Issengaard/gonkey_grpc/checker/grpc_response"
+	pb "github.com/Issengaard/gonkey_grpc/examples/grpc/proto"
+	grpcmock "github.com/Issengaard/gonkey_grpc/mocks/grpc"
 )
 
 const grpcIntegrationBufSize = 1024 * 1024
@@ -153,21 +153,19 @@ func TestGrpcResponseChecker_Check(t *testing.T) {
 	}
 }
 
-func TestGrpcMock_ErrorOnMissingReflection(t *testing.T) {
+func TestGrpcMock_ServesReflectionFromGlobalRegistry(t *testing.T) {
 	t.Parallel()
 
+	// New() registers reflection backed by protoregistry.GlobalFiles.
+	// The test binary imports example/grpc/proto, so example.UserService is discoverable.
 	mock := grpcmock.New()
 	require.NoError(t, mock.StartServer("localhost:0"))
 	t.Cleanup(mock.Stop)
 
-	// GrpcMock uses raw proto bytes for Response, but since we test via GrpcTransport
-	// which uses grpcurl (JSON mode), we need a mock that can serve proto responses.
-	// The mock works at raw proto level. For this integration test we verify that
-	// GrpcTransport can connect to the mock and get a response (even if status-based).
 	mock.SetDefinition(&grpcmock.GrpcDefinition{
 		Service:        "example.UserService",
 		Method:         "GetUser",
-		Response:       nil, // empty response
+		Response:       nil, // empty proto response
 		ResponseStatus: codes.OK,
 	})
 
@@ -183,17 +181,12 @@ func TestGrpcMock_ErrorOnMissingReflection(t *testing.T) {
 		responses:   map[int]string{0: "{}"},
 	}
 
-	// GrpcMock doesn't serve reflection, so descriptor resolution will fail.
-	// This test verifies the mock is reachable and returns a meaningful gRPC error.
+	// Reflection is now served from GlobalFiles — descriptor resolution must succeed.
 	result, err := transport.Execute(context.Background(), test)
-	if err != nil {
-		// Expected: reflection not available on mock server
-		assert.Contains(t, err.Error(), "reflection")
-		return
-	}
 
-	// If we get here, mock served a response successfully
+	require.NoError(t, err)
 	assert.NotNil(t, result)
+	assert.Equal(t, int(codes.OK), result.GrpcStatusCode)
 }
 
 func TestGrpcTransport_ExecuteTCP(t *testing.T) {
