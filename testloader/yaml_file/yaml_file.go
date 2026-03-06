@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/lamoda/gonkey/models"
+	"github.com/Issengaard/gonkey_grpc/models"
 )
 
 type YamlFileLoader struct {

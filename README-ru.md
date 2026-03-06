@@ -109,8 +109,8 @@ Gonkey протестирует ваши сервисы, используя их
 
 ```go
 import (
-    "github.com/lamoda/gonkey/runner"
-    "github.com/lamoda/gonkey/mocks"
+    "github.com/Issengaard/gonkey_grpc/runner"
+    "github.com/Issengaard/gonkey_grpc/mocks"
 )
 ```
 
@@ -122,9 +122,9 @@ package test
 import (
   "testing"
 
-  "github.com/lamoda/gonkey/fixtures"
-  "github.com/lamoda/gonkey/mocks"
-  "github.com/lamoda/gonkey/runner"
+  "github.com/Issengaard/gonkey_grpc/fixtures"
+  "github.com/Issengaard/gonkey_grpc/mocks"
+  "github.com/Issengaard/gonkey_grpc/runner"
 )
 
 func TestFuncCases(t *testing.T) {
@@ -180,11 +180,11 @@ import (
   "net/http/httptest"
   "testing"
 
-  "github.com/lamoda/gonkey/fixtures"
-  redisLoader "github.com/lamoda/gonkey/fixtures/redis"
+  "github.com/Issengaard/gonkey_grpc/fixtures"
+  redisLoader "github.com/Issengaard/gonkey_grpc/fixtures/redis"
   // redisLoader "custom_module/gonkey-redis" // внешняя библиотека, содержащая реализацию интерфейса fixtures.Loader
   redisClient "github.com/redis/go-redis/v9"
-  "github.com/lamoda/gonkey/runner"
+  "github.com/Issengaard/gonkey_grpc/runner"
 )
 
 func TestFuncCases(t *testing.T) {

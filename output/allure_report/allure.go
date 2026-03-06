@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lamoda/gonkey/output/allure_report/beans"
+	"github.com/Issengaard/gonkey_grpc/output/allure_report/beans"
 )
 
 type Allure struct {

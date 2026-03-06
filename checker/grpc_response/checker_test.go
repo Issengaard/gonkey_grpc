@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lamoda/gonkey/models"
-	"github.com/lamoda/gonkey/testloader/yaml_file"
+	"github.com/Issengaard/gonkey_grpc/models"
+	"github.com/Issengaard/gonkey_grpc/testloader/yaml_file"
 )
 
 func TestGrpcResponseChecker_Check(t *testing.T) {

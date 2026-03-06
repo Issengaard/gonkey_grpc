@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lamoda/gonkey/mocks"
-	"github.com/lamoda/gonkey/models"
-	"github.com/lamoda/gonkey/output/allure_report/allure2"
+	"github.com/Issengaard/gonkey_grpc/mocks"
+	"github.com/Issengaard/gonkey_grpc/models"
+	"github.com/Issengaard/gonkey_grpc/output/allure_report/allure2"
 )
 
 // Allure2Output generates Allure 2 JSON format reports

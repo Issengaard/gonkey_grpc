@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lamoda/gonkey/models"
+	"github.com/Issengaard/gonkey_grpc/models"
 )
 
 // transportExecutor executes the transport layer for a single test case.

@@ -5,7 +5,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/lamoda/gonkey/fixtures/redis/parser"
+	"github.com/Issengaard/gonkey_grpc/fixtures/redis/parser"
 )
 
 type Loader struct {

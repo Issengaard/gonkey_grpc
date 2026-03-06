@@ -1,8 +1,8 @@
 package yaml_file
 
 import (
-	"github.com/lamoda/gonkey/compare"
-	"github.com/lamoda/gonkey/models"
+	"github.com/Issengaard/gonkey_grpc/compare"
+	"github.com/Issengaard/gonkey_grpc/models"
 )
 
 type TestDefinition struct {

@@ -15,8 +15,8 @@ import (
 
 	"github.com/tidwall/gjson"
 
-	"github.com/lamoda/gonkey/compare"
-	"github.com/lamoda/gonkey/xmlparsing"
+	"github.com/Issengaard/gonkey_grpc/compare"
+	"github.com/Issengaard/gonkey_grpc/xmlparsing"
 )
 
 type verifier interface {

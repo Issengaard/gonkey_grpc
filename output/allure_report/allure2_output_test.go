@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/lamoda/gonkey/mocks"
-	"github.com/lamoda/gonkey/models"
+	"github.com/Issengaard/gonkey_grpc/mocks"
+	"github.com/Issengaard/gonkey_grpc/models"
 )
 
 func TestGroupErrorsByEndpoint(t *testing.T) {

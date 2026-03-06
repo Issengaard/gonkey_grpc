@@ -2,7 +2,7 @@
   "$id": "https://raw.githubusercontent.com/lamoda/gonkey/master/gonkey.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Gonkey test automation tool",
-  "description": "Gonkey described here https://github.com/lamoda/gonkey",
+  "description": "Gonkey described here https://github.com/Issengaard/gonkey_grpc",
   "anyOf": [
     { "$ref": "#/$defs/gonkeyTest" },
     {

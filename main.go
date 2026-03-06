@@ -14,16 +14,16 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/lamoda/gonkey/checker/response_body"
-	"github.com/lamoda/gonkey/checker/response_db"
-	"github.com/lamoda/gonkey/fixtures"
-	redisLoader "github.com/lamoda/gonkey/fixtures/redis"
-	"github.com/lamoda/gonkey/output/allure_report"
-	"github.com/lamoda/gonkey/output/console_colored"
-	"github.com/lamoda/gonkey/runner"
-	aerospikeAdapter "github.com/lamoda/gonkey/storage/aerospike"
-	"github.com/lamoda/gonkey/testloader/yaml_file"
-	"github.com/lamoda/gonkey/variables"
+	"github.com/Issengaard/gonkey_grpc/checker/response_body"
+	"github.com/Issengaard/gonkey_grpc/checker/response_db"
+	"github.com/Issengaard/gonkey_grpc/fixtures"
+	redisLoader "github.com/Issengaard/gonkey_grpc/fixtures/redis"
+	"github.com/Issengaard/gonkey_grpc/output/allure_report"
+	"github.com/Issengaard/gonkey_grpc/output/console_colored"
+	"github.com/Issengaard/gonkey_grpc/runner"
+	aerospikeAdapter "github.com/Issengaard/gonkey_grpc/storage/aerospike"
+	"github.com/Issengaard/gonkey_grpc/testloader/yaml_file"
+	"github.com/Issengaard/gonkey_grpc/variables"
 )
 
 type config struct {

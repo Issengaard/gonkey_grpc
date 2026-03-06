@@ -10,8 +10,8 @@ import (
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/validate"
 
-	"github.com/lamoda/gonkey/checker"
-	"github.com/lamoda/gonkey/models"
+	"github.com/Issengaard/gonkey_grpc/checker"
+	"github.com/Issengaard/gonkey_grpc/models"
 )
 
 type ResponseSchemaChecker struct {

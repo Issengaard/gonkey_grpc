@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/lamoda/gonkey/checker"
-	"github.com/lamoda/gonkey/models"
+	"github.com/Issengaard/gonkey_grpc/checker"
+	"github.com/Issengaard/gonkey_grpc/models"
 )
 
 type ResponseMultiDbChecker struct {

@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/lamoda/gonkey/runner"
+	"github.com/Issengaard/gonkey_grpc/runner"
 )
 
 // Example of using gonkey as a library with Allure 2 reports

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/lamoda/gonkey/models"
+	"github.com/Issengaard/gonkey_grpc/models"
 )
 
 // mockInfo contains information about a mock service

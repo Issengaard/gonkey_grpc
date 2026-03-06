@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/lamoda/gonkey/models"
+	"github.com/Issengaard/gonkey_grpc/models"
 )
 
 // Compile-time interface check.
