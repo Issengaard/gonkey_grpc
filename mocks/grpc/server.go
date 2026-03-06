@@ -9,34 +9,48 @@ import (
 	"google.golang.org/grpc/encoding"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
-var _ encoding.Codec = rawBytesCodec{}
+var _ encoding.Codec = smartCodec{}
 
-// rawBytesCodec passes raw proto frames without deserialization.
-type rawBytesCodec struct{}
+// smartCodec handles two cases transparently:
+//   - []byte / *[]byte — raw proto frames for UnknownServiceHandler (no schema needed)
+//   - proto.Message     — standard protobuf encoding for registered services such as
+//     the gRPC reflection service
+//
+// This allows ForceServerCodec to serve both the reflection endpoint and the
+// unknown-service handler on the same gRPC server.
+type smartCodec struct{}
 
-func (rawBytesCodec) Marshal(v interface{}) ([]byte, error) {
-	b, ok := v.([]byte)
-	if !ok {
-		return nil, fmt.Errorf("grpcmock: Marshal expects []byte, got %T", v)
+func (smartCodec) Marshal(v interface{}) ([]byte, error) {
+	if b, ok := v.([]byte); ok {
+		return b, nil
 	}
 
-	return b, nil
-}
-
-func (rawBytesCodec) Unmarshal(data []byte, v interface{}) error {
-	p, ok := v.(*[]byte)
+	msg, ok := v.(proto.Message)
 	if !ok {
-		return fmt.Errorf("grpcmock: Unmarshal expects *[]byte, got %T", v)
+		return nil, fmt.Errorf("grpcmock: Marshal expects []byte or proto.Message, got %T", v)
 	}
 
-	*p = data
-
-	return nil
+	return proto.Marshal(msg)
 }
 
-func (rawBytesCodec) Name() string { return "proto" }
+func (smartCodec) Unmarshal(data []byte, v interface{}) error {
+	if p, ok := v.(*[]byte); ok {
+		*p = data
+		return nil
+	}
+
+	msg, ok := v.(proto.Message)
+	if !ok {
+		return fmt.Errorf("grpcmock: Unmarshal expects *[]byte or proto.Message, got %T", v)
+	}
+
+	return proto.Unmarshal(data, msg)
+}
+
+func (smartCodec) Name() string { return "proto" }
 
 func (m *GrpcMock) unknownServiceHandler(_ interface{}, stream grpc.ServerStream) error {
 	method, ok := grpc.MethodFromServerStream(stream)
@@ -79,14 +93,19 @@ func (m *GrpcMock) unknownServiceHandler(_ interface{}, stream grpc.ServerStream
 		grpc.SetTrailer(stream.Context(), metadata.Pairs(pairs...))
 	}
 
-	if def.Response != nil {
-		if err := stream.SendMsg(def.Response); err != nil {
-			return status.Errorf(codes.Internal, "grpcmock: send error: %v", err)
-		}
-	}
-
 	if def.ResponseStatus != codes.OK {
 		return status.Error(def.ResponseStatus, "")
+	}
+
+	// For OK status, always send a response frame (gRPC unary requires exactly one response).
+	// nil response is sent as an empty proto message (all fields at default values).
+	resp := def.Response
+	if resp == nil {
+		resp = []byte{}
+	}
+
+	if err := stream.SendMsg(resp); err != nil {
+		return status.Errorf(codes.Internal, "grpcmock: send error: %v", err)
 	}
 
 	return nil
