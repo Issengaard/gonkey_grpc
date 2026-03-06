@@ -115,6 +115,10 @@ func (t *Test) ServiceMocks() map[string]interface{} {
 	return t.MocksDefinition
 }
 
+func (t *Test) GrpcServiceMocks() map[string]interface{} {
+	return t.GrpcMocksDefinition
+}
+
 func (t *Test) Pause() int {
 	return t.PauseValue
 }
@@ -196,6 +200,7 @@ func (t *Test) Clone() models.TestInterface {
 	res.HeadersVal = maps.Clone(t.HeadersVal)
 	res.CookiesVal = maps.Clone(t.CookiesVal)
 	res.MocksDefinition = maps.Clone(t.MocksDefinition)
+	res.GrpcMocksDefinition = maps.Clone(t.GrpcMocksDefinition)
 	res.ResponseTmpls = maps.Clone(t.ResponseTmpls)
 
 	if t.VariablesToSet != nil {

@@ -13,20 +13,21 @@ import (
 	"github.com/aerospike/aerospike-client-go/v5"
 	"github.com/joho/godotenv"
 
-	"github.com/Issengaard/gonkey_grpc/checker"
-	"github.com/Issengaard/gonkey_grpc/checker/grpc_response"
-	"github.com/Issengaard/gonkey_grpc/checker/response_body"
-	"github.com/Issengaard/gonkey_grpc/checker/response_db"
-	"github.com/Issengaard/gonkey_grpc/checker/response_header"
-	"github.com/Issengaard/gonkey_grpc/fixtures"
-	"github.com/Issengaard/gonkey_grpc/mocks"
-	"github.com/Issengaard/gonkey_grpc/models"
-	"github.com/Issengaard/gonkey_grpc/output"
-	"github.com/Issengaard/gonkey_grpc/output/allure_report"
-	testingOutput "github.com/Issengaard/gonkey_grpc/output/testing"
-	aerospikeAdapter "github.com/Issengaard/gonkey_grpc/storage/aerospike"
-	"github.com/Issengaard/gonkey_grpc/testloader/yaml_file"
-	"github.com/Issengaard/gonkey_grpc/variables"
+	"github.com/lamoda/gonkey/checker"
+	"github.com/lamoda/gonkey/checker/grpc_response"
+	"github.com/lamoda/gonkey/checker/response_body"
+	"github.com/lamoda/gonkey/checker/response_db"
+	"github.com/lamoda/gonkey/checker/response_header"
+	"github.com/lamoda/gonkey/fixtures"
+	"github.com/lamoda/gonkey/mocks"
+	grpcmock "github.com/lamoda/gonkey/mocks/grpc"
+	"github.com/lamoda/gonkey/models"
+	"github.com/lamoda/gonkey/output"
+	"github.com/lamoda/gonkey/output/allure_report"
+	testingOutput "github.com/lamoda/gonkey/output/testing"
+	aerospikeAdapter "github.com/lamoda/gonkey/storage/aerospike"
+	"github.com/lamoda/gonkey/testloader/yaml_file"
+	"github.com/lamoda/gonkey/variables"
 )
 
 type Aerospike struct {
@@ -39,6 +40,7 @@ type RunWithTestingParams struct {
 	GrpcHost    string
 	TestsDir    string
 	Mocks       *mocks.Mocks
+	GrpcMocks   *grpcmock.GrpcMocks
 	FixturesDir string
 	DB          *sql.DB
 	Aerospike   Aerospike
@@ -61,6 +63,13 @@ func registerMocksEnvironment(m *mocks.Mocks) {
 	}
 }
 
+func registerGrpcMocksEnvironment(m *grpcmock.GrpcMocks) {
+	for _, n := range m.GetNames() {
+		varName := fmt.Sprintf("GONKEY_GRPC_MOCK_%s", strings.ToUpper(n))
+		os.Setenv(varName, m.Get(n).Addr())
+	}
+}
+
 // RunWithTesting is a helper function the wraps the common Run and provides simple way
 // to configure Gonkey by filling the params structure.
 func RunWithTesting(t *testing.T, params *RunWithTestingParams) {
@@ -68,6 +77,12 @@ func RunWithTesting(t *testing.T, params *RunWithTestingParams) {
 	if params.Mocks != nil {
 		mocksLoader = mocks.NewLoader(params.Mocks)
 		registerMocksEnvironment(params.Mocks)
+	}
+
+	var grpcMocksLoader *grpcmock.GrpcLoader
+	if params.GrpcMocks != nil {
+		grpcMocksLoader = grpcmock.NewGrpcLoader(params.GrpcMocks)
+		registerGrpcMocksEnvironment(params.GrpcMocks)
 	}
 
 	if params.EnvFilePath != "" {
@@ -99,7 +114,7 @@ func RunWithTesting(t *testing.T, params *RunWithTestingParams) {
 		proxyURL = httpURL
 	}
 
-	runner := initRunner(t, params, mocksLoader, fixturesLoader, proxyURL)
+	runner := initRunner(t, params, mocksLoader, grpcMocksLoader, fixturesLoader, proxyURL)
 
 	if params.OutputFunc != nil {
 		runner.AddOutput(params.OutputFunc)
@@ -140,6 +155,7 @@ func initRunner(
 	t *testing.T,
 	params *RunWithTestingParams,
 	mocksLoader *mocks.Loader,
+	grpcMocksLoader *grpcmock.GrpcLoader,
 	fixturesLoader fixtures.Loader,
 	proxyURL *url.URL,
 ) *Runner {
@@ -154,13 +170,15 @@ func initRunner(
 	handler := testingHandler{t}
 	runner := New(
 		&Config{
-			Host:           httpHost,
-			GrpcHost:       params.GrpcHost,
-			Mocks:          params.Mocks,
-			MocksLoader:    mocksLoader,
-			FixturesLoader: fixturesLoader,
-			Variables:      variables.New(),
-			HTTPProxyURL:   proxyURL,
+			Host:            httpHost,
+			GrpcHost:        params.GrpcHost,
+			Mocks:           params.Mocks,
+			MocksLoader:     mocksLoader,
+			GrpcMocks:       params.GrpcMocks,
+			GrpcMocksLoader: grpcMocksLoader,
+			FixturesLoader:  fixturesLoader,
+			Variables:       variables.New(),
+			HTTPProxyURL:    proxyURL,
 		},
 		yamlLoader,
 		handler.HandleTest,

@@ -115,8 +115,8 @@ Import gonkey as a dependency to your project in this file.
 
 ```go
 import (
-    "github.com/Issengaard/gonkey_grpc/runner"
-    "github.com/Issengaard/gonkey_grpc/mocks"
+    "github.com/lamoda/gonkey/runner"
+    "github.com/lamoda/gonkey/mocks"
 )
 ```
 
@@ -128,9 +128,9 @@ package test
 import (
   "testing"
 
-  "github.com/Issengaard/gonkey_grpc/fixtures"
-  "github.com/Issengaard/gonkey_grpc/mocks"
-  "github.com/Issengaard/gonkey_grpc/runner"
+  "github.com/lamoda/gonkey/fixtures"
+  "github.com/lamoda/gonkey/mocks"
+  "github.com/lamoda/gonkey/runner"
 )
 
 func TestFuncCases(t *testing.T) {
@@ -186,11 +186,11 @@ import (
   "net/http/httptest"
   "testing"
 
-  "github.com/Issengaard/gonkey_grpc/fixtures"
-  redisLoader "github.com/Issengaard/gonkey_grpc/fixtures/redis"
+  "github.com/lamoda/gonkey/fixtures"
+  redisLoader "github.com/lamoda/gonkey/fixtures/redis"
   // redisLoader "custom_module/gonkey-redis" // custom implementation of a fixtures.Loader interface
   redisClient "github.com/redis/go-redis/v9"
-  "github.com/Issengaard/gonkey_grpc/runner"
+  "github.com/lamoda/gonkey/runner"
 )
 
 func TestFuncCases(t *testing.T) {
@@ -1769,7 +1769,7 @@ Create a mock, register response definitions, and pass its address to the servic
 
 ```go
 import (
-    grpcmock "github.com/Issengaard/gonkey_grpc/mocks/grpc"
+    grpcmock "github.com/lamoda/gonkey/mocks/grpc"
     "google.golang.org/grpc/codes"
 )
 

@@ -26,6 +26,7 @@ type TestInterface interface {
 	Fixtures() []string
 	FixturesMultiDb() FixturesMultiDb
 	ServiceMocks() map[string]interface{}
+	GrpcServiceMocks() map[string]interface{}
 	Pause() int
 	BeforeScriptPath() string
 	BeforeScriptTimeout() int

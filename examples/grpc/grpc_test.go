@@ -7,9 +7,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	pb "github.com/Issengaard/gonkey_grpc/examples/grpc/proto"
-	"github.com/Issengaard/gonkey_grpc/examples/grpc/server"
-	"github.com/Issengaard/gonkey_grpc/runner"
+	pb "github.com/lamoda/gonkey/examples/grpc/proto"
+	"github.com/lamoda/gonkey/examples/grpc/server"
+	"github.com/lamoda/gonkey/runner"
 )
 
 func TestGrpc_UserService(t *testing.T) {

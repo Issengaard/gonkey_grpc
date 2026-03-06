@@ -12,12 +12,12 @@ import (
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/test/bufconn"
 
-	"github.com/Issengaard/gonkey_grpc/examples/grpc/server"
-	"github.com/Issengaard/gonkey_grpc/models"
+	"github.com/lamoda/gonkey/examples/grpc/server"
+	"github.com/lamoda/gonkey/models"
 
-	grpcchecker "github.com/Issengaard/gonkey_grpc/checker/grpc_response"
-	pb "github.com/Issengaard/gonkey_grpc/examples/grpc/proto"
-	grpcmock "github.com/Issengaard/gonkey_grpc/mocks/grpc"
+	grpcchecker "github.com/lamoda/gonkey/checker/grpc_response"
+	pb "github.com/lamoda/gonkey/examples/grpc/proto"
+	grpcmock "github.com/lamoda/gonkey/mocks/grpc"
 )
 
 const grpcIntegrationBufSize = 1024 * 1024
@@ -34,7 +34,7 @@ func startIntegrationGrpcServer(t *testing.T) *bufconn.Listener {
 	pb.RegisterUserServiceServer(s, svc)
 	reflection.Register(s)
 
-	t.Cleanup(func() { s.Stop() })   // hard stop: faster teardown in tests
+	t.Cleanup(func() { s.Stop() })                    // hard stop: faster teardown in tests
 	go func() { _ = s.Serve(lis) }() //nolint:errcheck // error expected after s.Stop()
 
 	return lis
@@ -254,14 +254,14 @@ func (s *grpcTestStub) GetResponse(code int) (string, bool) {
 	return v, ok
 }
 
-func (s *grpcTestStub) GetName() string                                    { return "grpc-stub" }
-func (s *grpcTestStub) GetDescription() string                             { return "" }
-func (s *grpcTestStub) GetStatus() string                                  { return "" }
-func (s *grpcTestStub) SetStatus(_ string)                                 {}
-func (s *grpcTestStub) GetFileName() string                                { return "" }
-func (s *grpcTestStub) GetMethod() string                                  { return "" }
-func (s *grpcTestStub) ToQuery() string                                    { return "" }
-func (s *grpcTestStub) ToJSON() ([]byte, error)                            { return nil, nil }
+func (s *grpcTestStub) GetName() string                                   { return "grpc-stub" }
+func (s *grpcTestStub) GetDescription() string                            { return "" }
+func (s *grpcTestStub) GetStatus() string                                 { return "" }
+func (s *grpcTestStub) SetStatus(_ string)                                {}
+func (s *grpcTestStub) GetFileName() string                               { return "" }
+func (s *grpcTestStub) GetMethod() string                                 { return "" }
+func (s *grpcTestStub) ToQuery() string                                   { return "" }
+func (s *grpcTestStub) ToJSON() ([]byte, error)                           { return nil, nil }
 func (s *grpcTestStub) GetResponseHeaders(_ int) (map[string]string, bool) { return nil, false }
 func (s *grpcTestStub) Cookies() map[string]string                         { return nil }
 func (s *grpcTestStub) ContentType() string                                { return "" }
@@ -269,6 +269,7 @@ func (s *grpcTestStub) GetForm() *models.Form                              { ret
 func (s *grpcTestStub) Fixtures() []string                                 { return nil }
 func (s *grpcTestStub) FixturesMultiDb() models.FixturesMultiDb            { return nil }
 func (s *grpcTestStub) ServiceMocks() map[string]interface{}               { return nil }
+func (s *grpcTestStub) GrpcServiceMocks() map[string]interface{}           { return nil }
 func (s *grpcTestStub) Pause() int                                         { return 0 }
 func (s *grpcTestStub) BeforeScriptPath() string                           { return "" }
 func (s *grpcTestStub) BeforeScriptTimeout() int                           { return 0 }

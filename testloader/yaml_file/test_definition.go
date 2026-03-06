@@ -27,6 +27,7 @@ type TestDefinition struct {
 	FixtureFiles             []string                  `json:"fixtures" yaml:"fixtures"`
 	FixturesListMultiDb      models.FixturesMultiDb    `json:"fixturesWithDb" yaml:"fixturesWithDb"`
 	MocksDefinition          map[string]interface{}    `json:"mocks" yaml:"mocks"`
+	GrpcMocksDefinition      map[string]interface{}    `json:"grpcMocks" yaml:"grpcMocks"`
 	PauseValue               int                       `json:"pause" yaml:"pause"`
 	DbQueryTmpl              string                    `json:"dbQuery" yaml:"dbQuery"`
 	DbResponseTmpl           []string                  `json:"dbResponse" yaml:"dbResponse"`
