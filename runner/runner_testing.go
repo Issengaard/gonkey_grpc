@@ -20,6 +20,7 @@ import (
 	"github.com/lamoda/gonkey/checker/response_header"
 	"github.com/lamoda/gonkey/fixtures"
 	"github.com/lamoda/gonkey/mocks"
+	grpcmock "github.com/lamoda/gonkey/mocks/grpc"
 	"github.com/lamoda/gonkey/models"
 	"github.com/lamoda/gonkey/output"
 	"github.com/lamoda/gonkey/output/allure_report"
@@ -39,6 +40,7 @@ type RunWithTestingParams struct {
 	GrpcHost    string
 	TestsDir    string
 	Mocks       *mocks.Mocks
+	GrpcMocks   *grpcmock.GrpcMocks
 	FixturesDir string
 	DB          *sql.DB
 	Aerospike   Aerospike
@@ -61,6 +63,13 @@ func registerMocksEnvironment(m *mocks.Mocks) {
 	}
 }
 
+func registerGrpcMocksEnvironment(m *grpcmock.GrpcMocks) {
+	for _, n := range m.GetNames() {
+		varName := fmt.Sprintf("GONKEY_GRPC_MOCK_%s", strings.ToUpper(n))
+		os.Setenv(varName, m.Get(n).Addr())
+	}
+}
+
 // RunWithTesting is a helper function the wraps the common Run and provides simple way
 // to configure Gonkey by filling the params structure.
 func RunWithTesting(t *testing.T, params *RunWithTestingParams) {
@@ -68,6 +77,12 @@ func RunWithTesting(t *testing.T, params *RunWithTestingParams) {
 	if params.Mocks != nil {
 		mocksLoader = mocks.NewLoader(params.Mocks)
 		registerMocksEnvironment(params.Mocks)
+	}
+
+	var grpcMocksLoader *grpcmock.GrpcLoader
+	if params.GrpcMocks != nil {
+		grpcMocksLoader = grpcmock.NewGrpcLoader(params.GrpcMocks)
+		registerGrpcMocksEnvironment(params.GrpcMocks)
 	}
 
 	if params.EnvFilePath != "" {
@@ -99,7 +114,7 @@ func RunWithTesting(t *testing.T, params *RunWithTestingParams) {
 		proxyURL = httpURL
 	}
 
-	runner := initRunner(t, params, mocksLoader, fixturesLoader, proxyURL)
+	runner := initRunner(t, params, mocksLoader, grpcMocksLoader, fixturesLoader, proxyURL)
 
 	if params.OutputFunc != nil {
 		runner.AddOutput(params.OutputFunc)
@@ -140,6 +155,7 @@ func initRunner(
 	t *testing.T,
 	params *RunWithTestingParams,
 	mocksLoader *mocks.Loader,
+	grpcMocksLoader *grpcmock.GrpcLoader,
 	fixturesLoader fixtures.Loader,
 	proxyURL *url.URL,
 ) *Runner {
@@ -154,13 +170,15 @@ func initRunner(
 	handler := testingHandler{t}
 	runner := New(
 		&Config{
-			Host:           httpHost,
-			GrpcHost:       params.GrpcHost,
-			Mocks:          params.Mocks,
-			MocksLoader:    mocksLoader,
-			FixturesLoader: fixturesLoader,
-			Variables:      variables.New(),
-			HTTPProxyURL:   proxyURL,
+			Host:            httpHost,
+			GrpcHost:        params.GrpcHost,
+			Mocks:           params.Mocks,
+			MocksLoader:     mocksLoader,
+			GrpcMocks:       params.GrpcMocks,
+			GrpcMocksLoader: grpcMocksLoader,
+			FixturesLoader:  fixturesLoader,
+			Variables:       variables.New(),
+			HTTPProxyURL:    proxyURL,
 		},
 		yamlLoader,
 		handler.HandleTest,

@@ -14,6 +14,7 @@ import (
 	"github.com/lamoda/gonkey/cmd_runner"
 	"github.com/lamoda/gonkey/fixtures"
 	"github.com/lamoda/gonkey/mocks"
+	grpcmock "github.com/lamoda/gonkey/mocks/grpc"
 	"github.com/lamoda/gonkey/models"
 	"github.com/lamoda/gonkey/output"
 	"github.com/lamoda/gonkey/testloader"
@@ -27,6 +28,8 @@ type Config struct {
 	FixturesLoaderMultiDb fixtures.LoaderMultiDb
 	Mocks                 *mocks.Mocks
 	MocksLoader           *mocks.Loader
+	GrpcMocks             *grpcmock.GrpcMocks
+	GrpcMocksLoader       *grpcmock.GrpcLoader
 	Variables             *variables.Variables
 	HTTPProxyURL          *url.URL
 	RequestTimeout        time.Duration
@@ -182,6 +185,15 @@ func (r *Runner) setupMocks(v models.TestInterface) error {
 	if r.config.MocksLoader != nil && v.ServiceMocks() != nil {
 		if err := r.config.MocksLoader.Load(v.ServiceMocks()); err != nil {
 			return err
+		}
+	}
+
+	if r.config.GrpcMocks != nil {
+		r.config.GrpcMocks.ResetAll()
+		if grpcDefs := v.GrpcServiceMocks(); len(grpcDefs) > 0 && r.config.GrpcMocksLoader != nil {
+			if err := r.config.GrpcMocksLoader.Load(grpcDefs); err != nil {
+				return fmt.Errorf("grpc mocks: %w", err)
+			}
 		}
 	}
 
