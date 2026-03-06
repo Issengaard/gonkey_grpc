@@ -70,7 +70,7 @@ formatters:
       sections:
         - standard
         - default
-        - prefix(github.com/lamoda/gonkey)
+        - prefix(github.com/Issengaard/gonkey_grpc)
       custom-order: false
       no-lex-order: false
   exclusions:

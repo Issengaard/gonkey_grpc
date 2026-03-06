@@ -6,11 +6,11 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/lamoda/gonkey/fixtures/aerospike"
-	"github.com/lamoda/gonkey/fixtures/mysql"
-	"github.com/lamoda/gonkey/fixtures/postgres"
-	"github.com/lamoda/gonkey/models"
-	aerospikeClient "github.com/lamoda/gonkey/storage/aerospike"
+	"github.com/Issengaard/gonkey_grpc/fixtures/aerospike"
+	"github.com/Issengaard/gonkey_grpc/fixtures/mysql"
+	"github.com/Issengaard/gonkey_grpc/fixtures/postgres"
+	"github.com/Issengaard/gonkey_grpc/models"
+	aerospikeClient "github.com/Issengaard/gonkey_grpc/storage/aerospike"
 )
 
 type DbType int

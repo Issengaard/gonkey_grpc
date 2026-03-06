@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/lamoda/gonkey/models"
+	"github.com/Issengaard/gonkey_grpc/models"
 )
 
 type dbCheck struct {

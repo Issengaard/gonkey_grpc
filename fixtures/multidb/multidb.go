@@ -3,8 +3,8 @@ package multidb
 import (
 	"fmt"
 
-	"github.com/lamoda/gonkey/fixtures"
-	"github.com/lamoda/gonkey/models"
+	"github.com/Issengaard/gonkey_grpc/fixtures"
+	"github.com/Issengaard/gonkey_grpc/models"
 )
 
 type LoaderByMap struct {

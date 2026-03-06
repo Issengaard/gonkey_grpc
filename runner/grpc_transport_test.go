@@ -25,9 +25,9 @@ import (
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/types/descriptorpb"
 
-	"github.com/lamoda/gonkey/models"
-	grpc_mocks "github.com/lamoda/gonkey/runner/mocks/grpc_testing"
-	"github.com/lamoda/gonkey/testloader/yaml_file"
+	"github.com/Issengaard/gonkey_grpc/models"
+	grpc_mocks "github.com/Issengaard/gonkey_grpc/runner/mocks/grpc_testing"
+	"github.com/Issengaard/gonkey_grpc/testloader/yaml_file"
 )
 
 const bufSize = 1024 * 1024

@@ -14,7 +14,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/lamoda/gonkey/models"
+	"github.com/Issengaard/gonkey_grpc/models"
 )
 
 func newClient(proxyURL *url.URL) *http.Client {

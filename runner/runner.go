@@ -10,14 +10,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lamoda/gonkey/checker"
-	"github.com/lamoda/gonkey/cmd_runner"
-	"github.com/lamoda/gonkey/fixtures"
-	"github.com/lamoda/gonkey/mocks"
-	"github.com/lamoda/gonkey/models"
-	"github.com/lamoda/gonkey/output"
-	"github.com/lamoda/gonkey/testloader"
-	"github.com/lamoda/gonkey/variables"
+	"github.com/Issengaard/gonkey_grpc/checker"
+	"github.com/Issengaard/gonkey_grpc/cmd_runner"
+	"github.com/Issengaard/gonkey_grpc/fixtures"
+	"github.com/Issengaard/gonkey_grpc/mocks"
+	"github.com/Issengaard/gonkey_grpc/models"
+	"github.com/Issengaard/gonkey_grpc/output"
+	"github.com/Issengaard/gonkey_grpc/testloader"
+	"github.com/Issengaard/gonkey_grpc/variables"
 )
 
 type Config struct {

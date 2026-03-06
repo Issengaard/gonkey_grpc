@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/lamoda/gonkey/compare"
+	"github.com/Issengaard/gonkey_grpc/compare"
 )
 
 type Loader struct {

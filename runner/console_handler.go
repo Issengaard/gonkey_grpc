@@ -3,7 +3,7 @@ package runner
 import (
 	"errors"
 
-	"github.com/lamoda/gonkey/models"
+	"github.com/Issengaard/gonkey_grpc/models"
 )
 
 type ConsoleHandler struct {

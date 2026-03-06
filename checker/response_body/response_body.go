@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lamoda/gonkey/checker"
-	"github.com/lamoda/gonkey/compare"
-	"github.com/lamoda/gonkey/models"
-	"github.com/lamoda/gonkey/xmlparsing"
+	"github.com/Issengaard/gonkey_grpc/checker"
+	"github.com/Issengaard/gonkey_grpc/compare"
+	"github.com/Issengaard/gonkey_grpc/models"
+	"github.com/Issengaard/gonkey_grpc/xmlparsing"
 )
 
 type ResponseBodyChecker struct{}

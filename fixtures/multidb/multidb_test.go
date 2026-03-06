@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/DATA-DOG/go-sqlmock.v1"
 
-	"github.com/lamoda/gonkey/fixtures"
-	"github.com/lamoda/gonkey/fixtures/mysql"
-	"github.com/lamoda/gonkey/fixtures/postgres"
-	"github.com/lamoda/gonkey/models"
+	"github.com/Issengaard/gonkey_grpc/fixtures"
+	"github.com/Issengaard/gonkey_grpc/fixtures/mysql"
+	"github.com/Issengaard/gonkey_grpc/fixtures/postgres"
+	"github.com/Issengaard/gonkey_grpc/models"
 )
 
 const (

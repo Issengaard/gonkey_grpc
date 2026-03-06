@@ -1,4 +1,4 @@
-module github.com/lamoda/gonkey
+module github.com/Issengaard/gonkey_grpc
 
 go 1.24.0
 

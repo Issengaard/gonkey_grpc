@@ -12,12 +12,12 @@ import (
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/test/bufconn"
 
-	"github.com/lamoda/gonkey/examples/grpc/server"
-	"github.com/lamoda/gonkey/models"
+	"github.com/Issengaard/gonkey_grpc/examples/grpc/server"
+	"github.com/Issengaard/gonkey_grpc/models"
 
-	grpcchecker "github.com/lamoda/gonkey/checker/grpc_response"
-	pb "github.com/lamoda/gonkey/examples/grpc/proto"
-	grpcmock "github.com/lamoda/gonkey/mocks/grpc"
+	grpcchecker "github.com/Issengaard/gonkey_grpc/checker/grpc_response"
+	pb "github.com/Issengaard/gonkey_grpc/examples/grpc/proto"
+	grpcmock "github.com/Issengaard/gonkey_grpc/mocks/grpc"
 )
 
 const grpcIntegrationBufSize = 1024 * 1024
@@ -34,7 +34,7 @@ func startIntegrationGrpcServer(t *testing.T) *bufconn.Listener {
 	pb.RegisterUserServiceServer(s, svc)
 	reflection.Register(s)
 
-	t.Cleanup(func() { s.Stop() })                    // hard stop: faster teardown in tests
+	t.Cleanup(func() { s.Stop() })   // hard stop: faster teardown in tests
 	go func() { _ = s.Serve(lis) }() //nolint:errcheck // error expected after s.Stop()
 
 	return lis
@@ -254,46 +254,46 @@ func (s *grpcTestStub) GetResponse(code int) (string, bool) {
 	return v, ok
 }
 
-func (s *grpcTestStub) GetName() string                                   { return "grpc-stub" }
-func (s *grpcTestStub) GetDescription() string                            { return "" }
-func (s *grpcTestStub) GetStatus() string                                 { return "" }
-func (s *grpcTestStub) SetStatus(_ string)                                {}
-func (s *grpcTestStub) GetFileName() string                               { return "" }
-func (s *grpcTestStub) GetMethod() string                                 { return "" }
-func (s *grpcTestStub) ToQuery() string                                   { return "" }
-func (s *grpcTestStub) ToJSON() ([]byte, error)                           { return nil, nil }
+func (s *grpcTestStub) GetName() string                                    { return "grpc-stub" }
+func (s *grpcTestStub) GetDescription() string                             { return "" }
+func (s *grpcTestStub) GetStatus() string                                  { return "" }
+func (s *grpcTestStub) SetStatus(_ string)                                 {}
+func (s *grpcTestStub) GetFileName() string                                { return "" }
+func (s *grpcTestStub) GetMethod() string                                  { return "" }
+func (s *grpcTestStub) ToQuery() string                                    { return "" }
+func (s *grpcTestStub) ToJSON() ([]byte, error)                            { return nil, nil }
 func (s *grpcTestStub) GetResponseHeaders(_ int) (map[string]string, bool) { return nil, false }
-func (s *grpcTestStub) Cookies() map[string]string                        { return nil }
-func (s *grpcTestStub) ContentType() string                               { return "" }
-func (s *grpcTestStub) GetForm() *models.Form                             { return nil }
-func (s *grpcTestStub) Fixtures() []string                                { return nil }
-func (s *grpcTestStub) FixturesMultiDb() models.FixturesMultiDb           { return nil }
-func (s *grpcTestStub) ServiceMocks() map[string]interface{}              { return nil }
-func (s *grpcTestStub) Pause() int                                        { return 0 }
-func (s *grpcTestStub) BeforeScriptPath() string                          { return "" }
-func (s *grpcTestStub) BeforeScriptTimeout() int                          { return 0 }
-func (s *grpcTestStub) AfterRequestScriptPath() string                    { return "" }
-func (s *grpcTestStub) AfterRequestScriptTimeout() int                    { return 0 }
-func (s *grpcTestStub) DbNameString() string                              { return "" }
-func (s *grpcTestStub) DbQueryString() string                             { return "" }
-func (s *grpcTestStub) DbResponseJson() []string                          { return nil }
-func (s *grpcTestStub) GetDatabaseChecks() []models.DatabaseCheck         { return nil }
-func (s *grpcTestStub) SetDatabaseChecks(_ []models.DatabaseCheck)        {}
-func (s *grpcTestStub) GetVariables() map[string]string                   { return nil }
-func (s *grpcTestStub) GetCombinedVariables() map[string]string           { return nil }
-func (s *grpcTestStub) GetVariablesToSet() map[int]map[string]string      { return nil }
-func (s *grpcTestStub) NeedsCheckingValues() bool                         { return true }
-func (s *grpcTestStub) IgnoreArraysOrdering() bool                        { return false }
-func (s *grpcTestStub) DisallowExtraFields() bool                         { return false }
-func (s *grpcTestStub) IgnoreDbOrdering() bool                            { return false }
-func (s *grpcTestStub) Clone() models.TestInterface                       { c := *s; return &c }
-func (s *grpcTestStub) SetQuery(_ string)                                 {}
-func (s *grpcTestStub) SetMethod(_ string)                                {}
-func (s *grpcTestStub) SetPath(_ string)                                  {}
-func (s *grpcTestStub) SetRequest(_ string)                               {}
-func (s *grpcTestStub) SetForm(_ *models.Form)                            {}
-func (s *grpcTestStub) SetResponses(_ map[int]string)                     {}
-func (s *grpcTestStub) SetHeaders(_ map[string]string)                    {}
-func (s *grpcTestStub) SetDbQueryString(_ string)                         {}
-func (s *grpcTestStub) SetDbResponseJson(_ []string)                      {}
-func (s *grpcTestStub) GetAllureMetadata() *models.AllureMetadata         { return nil }
+func (s *grpcTestStub) Cookies() map[string]string                         { return nil }
+func (s *grpcTestStub) ContentType() string                                { return "" }
+func (s *grpcTestStub) GetForm() *models.Form                              { return nil }
+func (s *grpcTestStub) Fixtures() []string                                 { return nil }
+func (s *grpcTestStub) FixturesMultiDb() models.FixturesMultiDb            { return nil }
+func (s *grpcTestStub) ServiceMocks() map[string]interface{}               { return nil }
+func (s *grpcTestStub) Pause() int                                         { return 0 }
+func (s *grpcTestStub) BeforeScriptPath() string                           { return "" }
+func (s *grpcTestStub) BeforeScriptTimeout() int                           { return 0 }
+func (s *grpcTestStub) AfterRequestScriptPath() string                     { return "" }
+func (s *grpcTestStub) AfterRequestScriptTimeout() int                     { return 0 }
+func (s *grpcTestStub) DbNameString() string                               { return "" }
+func (s *grpcTestStub) DbQueryString() string                              { return "" }
+func (s *grpcTestStub) DbResponseJson() []string                           { return nil }
+func (s *grpcTestStub) GetDatabaseChecks() []models.DatabaseCheck          { return nil }
+func (s *grpcTestStub) SetDatabaseChecks(_ []models.DatabaseCheck)         {}
+func (s *grpcTestStub) GetVariables() map[string]string                    { return nil }
+func (s *grpcTestStub) GetCombinedVariables() map[string]string            { return nil }
+func (s *grpcTestStub) GetVariablesToSet() map[int]map[string]string       { return nil }
+func (s *grpcTestStub) NeedsCheckingValues() bool                          { return true }
+func (s *grpcTestStub) IgnoreArraysOrdering() bool                         { return false }
+func (s *grpcTestStub) DisallowExtraFields() bool                          { return false }
+func (s *grpcTestStub) IgnoreDbOrdering() bool                             { return false }
+func (s *grpcTestStub) Clone() models.TestInterface                        { c := *s; return &c }
+func (s *grpcTestStub) SetQuery(_ string)                                  {}
+func (s *grpcTestStub) SetMethod(_ string)                                 {}
+func (s *grpcTestStub) SetPath(_ string)                                   {}
+func (s *grpcTestStub) SetRequest(_ string)                                {}
+func (s *grpcTestStub) SetForm(_ *models.Form)                             {}
+func (s *grpcTestStub) SetResponses(_ map[int]string)                      {}
+func (s *grpcTestStub) SetHeaders(_ map[string]string)                     {}
+func (s *grpcTestStub) SetDbQueryString(_ string)                          {}
+func (s *grpcTestStub) SetDbResponseJson(_ []string)                       {}
+func (s *grpcTestStub) GetAllureMetadata() *models.AllureMetadata          { return nil }
