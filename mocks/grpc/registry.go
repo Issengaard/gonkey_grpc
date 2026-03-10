@@ -1,6 +1,9 @@
 package grpcmock
 
 import (
+	"fmt"
+	"sync"
+
 	"github.com/fullstorydev/grpcurl"
 	"github.com/jhump/protoreflect/desc"
 	"google.golang.org/protobuf/reflect/protoregistry"
@@ -19,7 +22,7 @@ type GrpcMocks struct {
 // out of the box when the test binary imports proto-generated Go packages.
 func NewGrpcMocks(ds grpcurl.DescriptorSource) *GrpcMocks {
 	if ds == nil {
-		ds, _ = descriptorSourceFromGlobalRegistry() // best-effort; nil → loader reports error per call
+		ds = newGlobalRegistrySource()
 	}
 
 	return &GrpcMocks{
@@ -28,35 +31,85 @@ func NewGrpcMocks(ds grpcurl.DescriptorSource) *GrpcMocks {
 	}
 }
 
-// descriptorSourceFromGlobalRegistry builds a DescriptorSource from every proto file
-// registered in protoregistry.GlobalFiles. The registry is populated automatically
-// when proto-generated Go packages are imported (no protoset file required).
-func descriptorSourceFromGlobalRegistry() (grpcurl.DescriptorSource, error) {
-	var fds []*desc.FileDescriptor
+// globalRegistrySource is a DescriptorSource that resolves symbols on-demand from
+// protoregistry.GlobalFiles, avoiding the duplicate-pointer issue that occurs when
+// grpcurl.DescriptorSourceFromFileDescriptors walks transitive deps of multiple files
+// that share the same import (e.g. google/protobuf/descriptor.proto).
+type globalRegistrySource struct {
+	mu    sync.Mutex
+	cache map[string]*desc.FileDescriptor // proto path → wrapped fd (first seen wins)
+}
 
-	var lastErr error
+func newGlobalRegistrySource() *globalRegistrySource {
+	return &globalRegistrySource{cache: make(map[string]*desc.FileDescriptor)}
+}
 
+// wrapFile wraps fd and caches the result. If a file with the same path was already
+// cached, the cached instance is returned so that all callers share the same pointer.
+func (s *globalRegistrySource) wrapFile(fd protoreflect.FileDescriptor) (*desc.FileDescriptor, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	path := string(fd.Path())
+	if d, ok := s.cache[path]; ok {
+		return d, nil
+	}
+	d, err := desc.WrapFile(fd)
+	if err != nil {
+		return nil, err
+	}
+	s.cache[path] = d
+	return d, nil
+}
+
+// ListServices returns all fully-qualified service names registered in GlobalFiles.
+func (s *globalRegistrySource) ListServices() ([]string, error) {
+	var services []string
+	seen := make(map[string]struct{})
 	protoregistry.GlobalFiles.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
-		d, err := desc.WrapFile(fd)
-		if err != nil {
-			lastErr = err
-			return false
+		svcs := fd.Services()
+		for i := 0; i < svcs.Len(); i++ {
+			name := string(svcs.Get(i).FullName())
+			if _, ok := seen[name]; !ok {
+				seen[name] = struct{}{}
+				services = append(services, name)
+			}
 		}
-
-		fds = append(fds, d)
-
 		return true
 	})
+	return services, nil
+}
 
-	if lastErr != nil {
-		return nil, lastErr
+// FindSymbol resolves a fully-qualified symbol name (service or message) from GlobalFiles.
+func (s *globalRegistrySource) FindSymbol(fullyQualifiedName string) (desc.Descriptor, error) {
+	var result desc.Descriptor
+	protoregistry.GlobalFiles.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
+		wrappedFd, err := s.wrapFile(fd)
+		if err != nil {
+			return true // skip unreadable files
+		}
+		for _, svc := range wrappedFd.GetServices() {
+			if svc.GetFullyQualifiedName() == fullyQualifiedName {
+				result = svc
+				return false
+			}
+		}
+		for _, msg := range wrappedFd.GetMessageTypes() {
+			if msg.GetFullyQualifiedName() == fullyQualifiedName {
+				result = msg
+				return false
+			}
+		}
+		return true
+	})
+	if result != nil {
+		return result, nil
 	}
+	return nil, fmt.Errorf("symbol not found: %s", fullyQualifiedName)
+}
 
-	if len(fds) == 0 {
-		return nil, nil
-	}
-
-	return grpcurl.DescriptorSourceFromFileDescriptors(fds...)
+// AllExtensionsForType returns nil (extensions not needed for JSON→proto conversion).
+func (s *globalRegistrySource) AllExtensionsForType(_ string) ([]*desc.FieldDescriptor, error) {
+	return nil, nil
 }
 
 // Add registers a mock under name.
