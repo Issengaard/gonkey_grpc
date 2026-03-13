@@ -1,0 +1,15 @@
+- name: "Mock — expectedRequest verification"
+  # expectedRequest is converted to proto bytes and verified against the incoming gRPC request.
+  # The test fails if the service sends a different request than declared here.
+  grpcMocks:
+    userServiceMock:
+      service: "example.UserService"
+      method: "GetUser"
+      expectedRequest: '{"id": "456"}'
+      responseBody: '{"user": {"id": "456", "name": "Bob"}}'
+      responseStatus: 0
+  method: GET
+  path: "/user"
+  query: "id=456"
+  response:
+    200: '{"user": {"id": "456", "name": "Bob"}}'

@@ -22,8 +22,9 @@ Capabilities:
   - [Using gonkey as a library](#using-gonkey-as-a-library)
   - [Test scenario example](#test-scenario-example)
   - [Test status](#test-status)
-  - [HTTP-request](#http-request)
-  - [HTTP-response](#http-response)
+  - [HTTP Testing](#http-testing)
+    - [HTTP Request](#http-request)
+    - [HTTP Response](#http-response)
   - [gRPC Testing](#grpc-testing)
   - [Variables](#variables)
     - [Assignment](#assignment)
@@ -69,6 +70,7 @@ Capabilities:
         - [dropRequest](#droprequest)
       - [Calls count](#calls-count)
   - [gRPC Mocks](#grpc-mocks)
+    - [YAML-driven gRPC mocks (grpcMocks)](#yaml-driven-grpc-mocks-grpcmocks)
     - [Running gRPC mocks while using gonkey as a library](#running-grpc-mocks-while-using-gonkey-as-a-library)
     - [GrpcMock API](#grpcmock-api)
   - [Shell scripts usage](#shell-scripts-usage)
@@ -222,6 +224,8 @@ func TestFuncCases(t *testing.T) {
 ```
 
 The tests can be now ran with `go test`, for example: `go test ./...`.
+
+To isolate your service from external gRPC dependencies, pass a `GrpcMocks` registry via `RunWithTestingParams.GrpcMocks`. Each registered mock server starts on a random port; its address is automatically exported as the env var `GONKEY_GRPC_MOCK_<NAME>` (uppercase) before any test runs. Per-test mock definitions are loaded from the `grpcMocks` YAML field automatically — no manual `ResetDefinitions()` calls needed. See [gRPC Mocks](#grpc-mocks) for full details.
 
 ## Test scenario example
 
@@ -413,7 +417,9 @@ These labels are used for TestIT integration and help organize tests by componen
 1. Set common labels once in your test setup
 2. Override them for specific tests when needed
 
-## HTTP-request
+## HTTP Testing
+
+### HTTP Request
 
 `method` - a parameter for HTTP request type, the format is in the example above.
 
@@ -423,7 +429,7 @@ These labels are used for TestIT integration and help organize tests by componen
 
 `cookies` - a parameter for cookies, the format is in the example above.
 
-## HTTP-response
+### HTTP Response
 
 `response` - the HTTP response body for the specified HTTP status codes.
 
@@ -508,6 +514,11 @@ You can use variables in the description of the test, the following fields are s
 - mocks headers
 - mocks requestConstraints
 - form
+- grpcMocks service
+- grpcMocks method
+- grpcMocks responseBody
+- grpcMocks expectedRequest
+- grpcMocks metadata values
 
 Example:
 
@@ -1763,47 +1774,84 @@ To imitate responses from external gRPC services, use `GrpcMock`. It is an embed
 
 `GrpcMock` uses `grpc.UnknownServiceHandler` to dynamically handle calls to any proto service without code generation — no `.proto` files or generated stubs are required for the mock itself.
 
+See `examples/grpc/grpc_mock_test.go` for a complete working example.
+
+### YAML-driven gRPC mocks (grpcMocks)
+
+The `grpcMocks` YAML field configures per-test mock definitions. Before each test the runner resets all registered mocks and reloads definitions from the YAML block — no manual `ResetDefinitions()` or `SetDefinition()` calls are required in test code.
+
+#### Field reference
+
+| YAML field | Type | Description |
+|---|---|---|
+| `service` | string | Fully qualified service name (e.g. `"example.UserService"`) |
+| `method` | string | Method name (e.g. `"GetUser"`) |
+| `responseBody` | string (JSON) | Response JSON converted to proto wire bytes by the runner |
+| `responseStatus` | int | gRPC status code (0 = OK, 5 = NotFound, etc.) |
+| `expectedRequest` | string (JSON) | Request JSON converted to proto bytes; verified against the incoming request |
+| `metadata` | map[string]string | Trailing gRPC metadata returned with the response |
+
+`responseBody` and `expectedRequest` are JSON strings. The runner converts them to protobuf wire format using the proto registry — no `.proto` files or protoset files are required when the test binary imports proto-generated Go packages.
+
+#### Example
+
+```yaml
+- name: "GetUser via mocked external gRPC dependency"
+  grpcMocks:
+    userServiceMock:
+      service: "example.UserService"
+      method: "GetUser"
+      responseBody: '{"user": {"id": "123", "name": "Alice"}}'
+      responseStatus: 0
+      expectedRequest: '{"id": "123"}'
+      metadata:
+        x-request-id: "test-123"
+  method: GET
+  path: "/user"
+  query: "id=123"
+  response:
+    200: '{"user": {"id": "123", "name": "Alice"}}'
+```
+
 ### Running gRPC mocks while using gonkey as a library
 
-Create a mock, register response definitions, and pass its address to the service under test:
+Create a `GrpcMocks` registry, register a mock server for each external gRPC dependency, and pass the registry to `RunWithTesting`. The runner resets and reloads mock definitions from the `grpcMocks` YAML field automatically before each test.
 
 ```go
 import (
-    grpcmock "github.com/lamoda/gonkey/mocks/grpc"
-    "google.golang.org/grpc/codes"
+    grpcmock "github.com/Issengaard/gonkey_grpc/mocks/grpc"
 )
 
 func TestMyService(t *testing.T) {
-    // create and start the mock server
+    // nil = auto-discover proto descriptors from protoregistry.GlobalFiles;
+    // works out of the box when the test binary imports proto-generated Go packages.
+    mocks := grpcmock.NewGrpcMocks(nil)
+
+    // create and start a mock server for each external gRPC dependency
     mock := grpcmock.New()
-    require.NoError(t, mock.StartServer("localhost:0"))
+    if err := mock.StartServer("localhost:0"); err != nil {
+        t.Fatal(err)
+    }
     t.Cleanup(mock.Stop)
-
-    // register a mock response for a gRPC method
-    mock.SetDefinition(&grpcmock.GrpcDefinition{
-        Service:        "payments.PaymentService",
-        Method:         "Charge",
-        Response:       []byte{...},       // raw proto-encoded response bytes
-        ResponseStatus: codes.OK,
-    })
-
-    // use mock.Addr() as the address for the external gRPC dependency
-    addr := mock.Addr() // e.g. "127.0.0.1:54321"
+    mocks.Add("paymentServiceMock", mock)
 
     // configure your service to connect to the mock instead of the real dependency
     svc := myservice.New(myservice.Config{
-        PaymentServiceAddr: addr,
+        PaymentServiceAddr: mock.Addr(), // e.g. "127.0.0.1:54321"
     })
 
-    // run tests against your service
+    // Each mock address is exported as an env var before any test runs:
+    //   GONKEY_GRPC_MOCK_PAYMENTSERVICEMOCK=127.0.0.1:<port>
+    // Your service can read this env var to discover the mock address at runtime.
     runner.RunWithTesting(t, &runner.RunWithTestingParams{
-        Server:   httptest.NewServer(svc.Handler()),
-        TestsDir: "testcases",
+        Server:    httptest.NewServer(svc.Handler()),
+        TestsDir:  "testcases",
+        GrpcMocks: mocks,
     })
 }
 ```
 
-Before each test, call `ResetDefinitions()` to clear previous state and register new definitions:
+**Advanced / manual use only.** When using YAML `grpcMocks`, the runner handles `ResetDefinitions()` and `SetDefinition()` automatically before each test. The snippet below is only needed when you manage mock state manually (e.g., from within a hand-written test loop):
 
 ```go
 mock.ResetDefinitions()

@@ -1,0 +1,31 @@
+- name: "Mock — extract variable from response"
+  # Extract the user name from the first response for use in subsequent tests.
+  grpcMocks:
+    userServiceMock:
+      service: "example.UserService"
+      method: "GetUser"
+      responseBody: '{"user": {"id": "123", "name": "Alice"}}'
+      responseStatus: 0
+  method: GET
+  path: "/user"
+  query: "id=123"
+  response:
+    200: '{"user": {"id": "123", "name": "Alice"}}'
+  variables_to_set:
+    200:
+      fetchedName: "user.name"
+
+- name: "Mock — use extracted variable in grpcMocks responseBody"
+  # $fetchedName was extracted from the previous test's response.
+  # Variables are substituted in grpcMocks fields before the mock is loaded.
+  grpcMocks:
+    userServiceMock:
+      service: "example.UserService"
+      method: "GetUser"
+      responseBody: '{"user": {"id": "456", "name": "{{ $fetchedName }}"}}'
+      responseStatus: 0
+  method: GET
+  path: "/user"
+  query: "id=456"
+  response:
+    200: '{"user": {"id": "456", "name": "Alice"}}'

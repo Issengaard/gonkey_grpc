@@ -1,4 +1,4 @@
-- name: "GetUser with mock data"
+- name: "GetUser by query param (Bob)"
   transport: grpc
   path: "example.UserService/GetUser"
   request: '{"id": "456"}'
