@@ -69,6 +69,10 @@ func (vs *Variables) Apply(t models.TestInterface) models.TestInterface {
 		vs.performInterface(definition)
 	}
 
+	for _, definition := range newTest.GrpcServiceMocks() {
+		vs.performInterface(definition)
+	}
+
 	return newTest
 }
 

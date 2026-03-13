@@ -1,0 +1,16 @@
+- name: "Mock — trailing metadata in response"
+  # metadata is sent as gRPC trailing metadata alongside the response.
+  grpcMocks:
+    userServiceMock:
+      service: "example.UserService"
+      method: "GetUser"
+      responseBody: '{"user": {"id": "789", "name": "Charlie"}}'
+      responseStatus: 0
+      metadata:
+        x-request-id: "test-789"
+        x-source: "mock"
+  method: GET
+  path: "/user"
+  query: "id=789"
+  response:
+    200: '{"user": {"id": "789", "name": "Charlie"}}'

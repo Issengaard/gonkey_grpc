@@ -12,6 +12,14 @@ import (
 	"github.com/Issengaard/gonkey_grpc/runner"
 )
 
+// TestGrpc_UserService demonstrates direct gRPC endpoint testing with gonkey.
+//
+// Architecture:
+//
+//	gonkey runner → gRPC server (service under test)
+//
+// Test cases are loaded from testcases/ and executed directly against the gRPC
+// server using the reflection-based transport. No mocks are involved.
 func TestGrpc_UserService(t *testing.T) {
 	addr := startGrpcServer(t)
 

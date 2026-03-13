@@ -1,0 +1,14 @@
+- name: "Mock — basic responseBody and responseStatus"
+  # grpcMocks configures the external gRPC dependency for this test.
+  # The runner resets all mocks and loads these definitions before sending the HTTP request.
+  grpcMocks:
+    userServiceMock:
+      service: "example.UserService"
+      method: "GetUser"
+      responseBody: '{"user": {"id": "123", "name": "Alice"}}'
+      responseStatus: 0
+  method: GET
+  path: "/user"
+  query: "id=123"
+  response:
+    200: '{"user": {"id": "123", "name": "Alice"}}'

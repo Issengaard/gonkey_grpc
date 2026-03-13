@@ -22,6 +22,10 @@ Gonkey протестирует ваши сервисы, используя их
   - [Статус теста](#статус-теста)
   - [HTTP-запрос](#http-запрос)
   - [HTTP-ответ](#http-ответ)
+  - [gRPC-тестирование](#grpc-тестирование)
+    - [Поля теста](#поля-теста)
+    - [Пример теста](#пример-теста)
+    - [Запуск в Go-тестах (библиотечный режим)](#запуск-в-go-тестах-библиотечный-режим)
   - [Переменные](#переменные)
     - [Способы присвоения](#способы-присвоения)
       - [В описании самого теста](#в-описании-самого-теста)
@@ -65,6 +69,10 @@ Gonkey протестирует ваши сервисы, используя их
         - [basedOnRequest](#basedonrequest)
         - [dropRequest](#droprequest)
       - [Подсчет количества вызовов](#подсчет-количества-вызовов)
+  - [gRPC-моки](#grpc-моки)
+    - [YAML-конфигурация gRPC-моков (grpcMocks)](#yaml-конфигурация-grpc-моков-grpcmocks)
+    - [Использование GrpcMocks в библиотечном режиме](#использование-grpcmocks-в-библиотечном-режиме)
+    - [Справочник API](#справочник-api)
   - [Использование shell скриптов](#использование-shell-скриптов)
     - [Описание скрипта](#описание-скрипта)
     - [Запуск скрипта с параметризацией](#запуск-скрипта-с-параметризацией)
@@ -216,6 +224,8 @@ func TestFuncCases(t *testing.T) {
 ```
 
 Теперь тесты можно запускать через `go test`, например, так: `go test ./...`.
+
+Чтобы изолировать тестируемый сервис от внешних gRPC-зависимостей, передайте реестр `GrpcMocks` через `RunWithTestingParams.GrpcMocks`. Каждый зарегистрированный mock-сервер запускается на случайном порту; его адрес автоматически экспортируется в переменную окружения `GONKEY_GRPC_MOCK_<NAME>` (в верхнем регистре) до запуска тестов. Конфигурация mock-ответов для каждого теста загружается из YAML-поля `grpcMocks` автоматически — ручные вызовы `ResetDefinitions()` не нужны. Подробнее см. раздел [gRPC-моки](#grpc-моки).
 
 ## Пример тестового сценария
 
@@ -421,6 +431,48 @@ runner.RunWithTesting(t, &runner.RunWithTestingParams{
 `response` - тело ответа HTTP для указанных кодов состояния HTTP.
 
 `responseHeaders` - все заголовки ответа HTTP для указанных кодов состояния HTTP.
+
+## gRPC-тестирование
+
+Gonkey поддерживает тестирование gRPC-сервисов напрямую. Укажите `transport: grpc` и `GrpcHost` в параметрах запуска.
+
+### Поля теста
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `transport` | string | Укажите `"grpc"` для gRPC-запросов |
+| `path` | string | Путь в формате `"package.Service/Method"` |
+| `request` | string (JSON) | Тело запроса в формате JSON |
+| `proto_source` | object | Источник proto-дескрипторов (`type: reflection` или `type: protoset`) |
+| `response` | map[int]string | Ожидаемый ответ: ключ — gRPC-статус (0=OK, 5=NotFound и т.д.) |
+
+### Пример теста
+
+```yaml
+- name: "GetUser — успешный запрос"
+  transport: grpc
+  path: "example.UserService/GetUser"
+  request: '{"id": "123"}'
+  proto_source:
+    type: reflection
+  response:
+    0: '{"user": {"id": "123", "name": "Alice"}}'
+```
+
+### Запуск в Go-тестах (библиотечный режим)
+
+```go
+func TestGrpc(t *testing.T) {
+    addr := startGrpcServer(t) // запустить тестируемый gRPC-сервер
+
+    runner.RunWithTesting(t, &runner.RunWithTestingParams{
+        GrpcHost: addr,
+        TestsDir: "testcases",
+    })
+}
+```
+
+См. `examples/grpc/` — полный рабочий пример.
 
 ## Переменные
 
@@ -1689,6 +1741,96 @@ Example:
   ...
 ```
 
+## gRPC-моки
+
+Для имитации ответов внешних gRPC-зависимостей используйте `GrpcMock`. Это встроенный mock-сервер, аналогичный HTTP `ServiceMock`.
+
+`GrpcMock` использует `grpc.UnknownServiceHandler` для динамической обработки вызовов к любому proto-сервису без кодогенерации — файлы `.proto` и сгенерированные заглушки для mock-сервера не требуются.
+
+См. `examples/grpc/grpc_mock_test.go` — полный рабочий пример.
+
+### YAML-конфигурация gRPC-моков (grpcMocks)
+
+Поле `grpcMocks` задаёт конфигурацию mock-ответов для конкретного теста. Перед каждым тестом runner автоматически сбрасывает все моки и загружает определения из YAML-блока — ручные вызовы `ResetDefinitions()` и `SetDefinition()` в тестовом коде не нужны.
+
+#### Справочник полей
+
+| YAML-поле | Тип | Описание |
+|---|---|---|
+| `service` | string | Полное имя сервиса (например, `"example.UserService"`) |
+| `method` | string | Имя метода (например, `"GetUser"`) |
+| `responseBody` | string (JSON) | JSON ответа, конвертируется в proto wire-байты раннером |
+| `responseStatus` | int | gRPC-статус ответа (0=OK, 5=NotFound и т.д.) |
+| `expectedRequest` | string (JSON) | JSON запроса, конвертируется в proto-байты и сверяется с входящим запросом |
+| `metadata` | map[string]string | Trailing gRPC-метаданные, возвращаемые вместе с ответом |
+
+`responseBody` и `expectedRequest` задаются как JSON-строки. Runner конвертирует их в protobuf wire-формат через proto-реестр — файлы `.proto` или protoset не нужны, если тестовый бинарь импортирует сгенерированные Go-пакеты.
+
+#### Пример
+
+```yaml
+- name: "GetUser через мок внешней gRPC-зависимости"
+  grpcMocks:
+    userServiceMock:
+      service: "example.UserService"
+      method: "GetUser"
+      responseBody: '{"user": {"id": "123", "name": "Alice"}}'
+      responseStatus: 0
+      expectedRequest: '{"id": "123"}'
+      metadata:
+        x-request-id: "test-123"
+  method: GET
+  path: "/user"
+  query: "id=123"
+  response:
+    200: '{"user": {"id": "123", "name": "Alice"}}'
+```
+
+### Использование GrpcMocks в библиотечном режиме
+
+```go
+import (
+    grpcmock "github.com/Issengaard/gonkey_grpc/mocks/grpc"
+)
+
+func TestMyService(t *testing.T) {
+    // nil = автоматическое обнаружение proto-дескрипторов из protoregistry.GlobalFiles
+    mocks := grpcmock.NewGrpcMocks(nil)
+
+    mock := grpcmock.New()
+    if err := mock.StartServer("localhost:0"); err != nil {
+        t.Fatal(err)
+    }
+    t.Cleanup(mock.Stop)
+    mocks.Add("paymentServiceMock", mock)
+
+    svc := myservice.New(myservice.Config{
+        PaymentServiceAddr: mock.Addr(),
+    })
+
+    // Адрес каждого мока экспортируется как переменная окружения до запуска тестов:
+    //   GONKEY_GRPC_MOCK_PAYMENTSERVICEMOCK=127.0.0.1:<port>
+    runner.RunWithTesting(t, &runner.RunWithTestingParams{
+        Server:    httptest.NewServer(svc.Handler()),
+        TestsDir:  "testcases",
+        GrpcMocks: mocks,
+    })
+}
+```
+
+### Справочник API
+
+#### GrpcDefinition
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `Service` | `string` | Полное имя сервиса (например, `"payments.PaymentService"`) |
+| `Method` | `string` | Имя метода (например, `"Charge"`) |
+| `Response` | `[]byte` | Proto-байты ответа (`nil` для пустого ответа) |
+| `ResponseStatus` | `codes.Code` | gRPC-статус (`codes.OK`, `codes.NotFound` и т.д.) |
+| `ExpectedRequest` | `[]byte` | Ожидаемые proto-байты запроса (`nil` — проверка не выполняется) |
+| `Metadata` | `map[string]string` | Trailing gRPC-метаданные ответа |
+
 ## Использование shell скриптов
 
 При запуске теста, операции выполняются в следующем порядке:
@@ -1975,3 +2117,4 @@ Example:
 
 В примере выше, схема из файла C:\Users\Leo\gonkey.json будет применяться ко всем файлам
 с расширением .gonkey.yaml
+
