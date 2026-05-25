@@ -105,8 +105,8 @@ func (t *GrpcTransport) Execute(ctx context.Context, test models.TestInterface) 
 	rf, formatter, err := grpcurl.RequestParserAndFormatterFor(
 		grpcurl.FormatJSON,
 		descSource,
-		t.cfg.EmitDefaultFields,
-		false,
+		t.cfg.Grpc.EmitDefaultFields,
+		t.cfg.Grpc.IncludeTextSeparator,
 		strings.NewReader(test.GetRequest()),
 	)
 	if err != nil {

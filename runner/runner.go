@@ -34,13 +34,24 @@ type Config struct {
 	HTTPProxyURL          *url.URL
 	RequestTimeout        time.Duration
 
+	// Grpc groups gRPC-transport-specific tuning. Zero value preserves
+	// historical behavior, so non-gRPC users can leave it unset.
+	Grpc GrpcOptions
+}
+
+// GrpcOptions groups gRPC-transport-specific tuning forwarded to grpcurl.
+// Zero value matches the historical grpcurl defaults.
+type GrpcOptions struct {
 	// EmitDefaultFields, when true, forces proto3 zero-value fields
 	// (false bool, 0 numbers, empty string, empty repeated/map) to be
-	// rendered in the gRPC response JSON body. The upstream grpcurl
-	// default is false, which omits these fields and breaks YAML
-	// expectations that assert on them explicitly (e.g. allowed: false,
-	// total: 0, roles: []). Applies to the gRPC transport only.
+	// rendered in the gRPC response JSON body. The grpcurl default is
+	// false, which omits these fields and breaks YAML expectations that
+	// assert on them explicitly (e.g. allowed: false, total: 0, roles: []).
 	EmitDefaultFields bool
+
+	// IncludeTextSeparator is forwarded to grpcurl.RequestParserAndFormatterFor
+	// as the includeTextSeparator argument. Default false.
+	IncludeTextSeparator bool
 }
 
 type (

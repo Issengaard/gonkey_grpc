@@ -53,6 +53,8 @@ type RunWithTestingParams struct {
 	// TestIT labels: can be overridden by test-level labels
 	AllurePackage   string
 	AllureTestClass string
+	// Grpc forwards gRPC-transport-specific options into Config.Grpc.
+	Grpc GrpcOptions
 }
 
 func registerMocksEnvironment(m *mocks.Mocks) {
@@ -179,6 +181,7 @@ func initRunner(
 			FixturesLoader:  fixturesLoader,
 			Variables:       variables.New(),
 			HTTPProxyURL:    proxyURL,
+			Grpc:            params.Grpc,
 		},
 		yamlLoader,
 		handler.HandleTest,
