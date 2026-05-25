@@ -6,7 +6,7 @@ VERSION=$(shell git describe --tags 2> /dev/null || git rev-parse --short HEAD)
 
 DOCKER_TAG ?= latest
 
-.PHONY: @dockerbuild @push @stub test
+.PHONY: @dockerbuild @push @stub test release release-dry-run release-with-notes
 
 build: @build
 
@@ -30,3 +30,15 @@ lint:
 
 fmt:
 	docker run --rm -v $(PWD):/app -w /app golangci/golangci-lint:v2.1.1 golangci-lint fmt -v
+
+release: ## Создать новый релиз (интерактивно)
+	@chmod +x dev/tools/release.sh
+	@./dev/tools/release.sh
+
+release-dry-run: ## Предпросмотр релиза без изменений
+	@chmod +x dev/tools/release.sh
+	@./dev/tools/release.sh --dry-run
+
+release-with-notes: ## Создать релиз с AI-генерированными заметками
+	@chmod +x dev/tools/release.sh
+	@./dev/tools/release.sh --generate-notes
