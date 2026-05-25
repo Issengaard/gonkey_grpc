@@ -349,6 +349,28 @@ or for elements of map/array (if it's JSON):
 
 Also, "?" in query is optional
 
+### `$matchArrayLen` matcher
+
+Use `$matchArrayLen(...)` when you want to assert the length of an array
+without listing its elements. Useful for catalog-style endpoints whose
+contents may grow over time.
+
+```yaml
+    response:
+        200: |
+          {
+            "permissions": "$matchArrayLen(55)",         # exact length
+            "roles": "$matchArrayLen(min=1)",            # at least one
+            "items": "$matchArrayLen(min=3,max=10)",     # inclusive range
+            "events": "$matchArrayLen(max=100)"          # only upper bound
+          }
+```
+
+Whitespace around `=` and `,` is allowed. The array's contents are not
+inspected — combine with a regular `expected: [...]` if you also need
+element-level assertions. Applying `$matchArrayLen` to a non-array value
+produces a `matchArrayLen requires array` error.
+
 ## Test status
 
 `status` - a parameter, for specially mark tests, can have following values:
