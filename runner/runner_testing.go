@@ -53,6 +53,12 @@ type RunWithTestingParams struct {
 	// TestIT labels: can be overridden by test-level labels
 	AllurePackage   string
 	AllureTestClass string
+
+	// EmitDefaultFields, when true, forces proto3 zero-value fields
+	// (false bool, 0 numbers, empty string, empty repeated/map) to be
+	// rendered in the gRPC response JSON body. See Config.EmitDefaultFields
+	// for details. Defaults to false for backward compatibility.
+	EmitDefaultFields bool
 }
 
 func registerMocksEnvironment(m *mocks.Mocks) {
@@ -170,15 +176,16 @@ func initRunner(
 	handler := testingHandler{t}
 	runner := New(
 		&Config{
-			Host:            httpHost,
-			GrpcHost:        params.GrpcHost,
-			Mocks:           params.Mocks,
-			MocksLoader:     mocksLoader,
-			GrpcMocks:       params.GrpcMocks,
-			GrpcMocksLoader: grpcMocksLoader,
-			FixturesLoader:  fixturesLoader,
-			Variables:       variables.New(),
-			HTTPProxyURL:    proxyURL,
+			Host:              httpHost,
+			GrpcHost:          params.GrpcHost,
+			Mocks:             params.Mocks,
+			MocksLoader:       mocksLoader,
+			GrpcMocks:         params.GrpcMocks,
+			GrpcMocksLoader:   grpcMocksLoader,
+			FixturesLoader:    fixturesLoader,
+			Variables:         variables.New(),
+			HTTPProxyURL:      proxyURL,
+			EmitDefaultFields: params.EmitDefaultFields,
 		},
 		yamlLoader,
 		handler.HandleTest,
