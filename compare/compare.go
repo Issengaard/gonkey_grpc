@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/fatih/color"
 )
@@ -21,6 +23,7 @@ type leafsMatchType int
 const (
 	pure leafsMatchType = iota
 	regex
+	arrayLen
 )
 
 const (
@@ -28,7 +31,10 @@ const (
 	mapType   = "map"
 )
 
-var regexExprRx = regexp.MustCompile(`^\$matchRegexp\((.+)\)$`)
+var (
+	regexExprRx    = regexp.MustCompile(`^\$matchRegexp\((.+)\)$`)
+	arrayLenExprRx = regexp.MustCompile(`^\$matchArrayLen\(([^)]*)\)$`)
+)
 
 // Compare compares values as plain text
 // It can be compared several ways:
@@ -44,8 +50,16 @@ func compareBranch(path string, expected, actual interface{}, params *Params) []
 	actualType := getType(actual)
 	var errors []error
 
+	mt := leafMatchType(expected)
+
+	// $matchArrayLen replaces the default array-length check and the
+	// per-element traversal; bypass the type check the same way regex does.
+	if mt == arrayLen {
+		return compareArrayLen(path, expected.(string), actual)
+	}
+
 	// compare types
-	if leafMatchType(expected) != regex && expectedType != actualType {
+	if mt != regex && expectedType != actualType {
 		errors = append(errors, makeError(path, "types do not match", expectedType, actualType))
 
 		return errors
@@ -211,7 +225,110 @@ func leafMatchType(expected interface{}) leafsMatchType {
 		return regex
 	}
 
+	if matches := arrayLenExprRx.FindStringSubmatch(val); matches != nil {
+		return arrayLen
+	}
+
 	return pure
+}
+
+// compareArrayLen validates the length of an actual array against the spec
+// declared in $matchArrayLen(...). The array contents are not inspected.
+func compareArrayLen(path, expected string, actual interface{}) []error {
+	matches := arrayLenExprRx.FindStringSubmatch(expected)
+	if matches == nil {
+		return []error{makeError(path, "matchArrayLen invalid spec", expected, "could not parse")}
+	}
+
+	minN, maxN, err := parseArrayLenSpec(matches[1])
+	if err != nil {
+		return []error{makeError(path, "matchArrayLen invalid spec", expected, err.Error())}
+	}
+
+	if getType(actual) != arrayType {
+		return []error{makeError(path, "matchArrayLen requires array", expected, fmt.Sprintf("<%s>", getType(actual)))}
+	}
+
+	got := reflect.ValueOf(actual).Len()
+	if got < minN || got > maxN {
+		return []error{makeError(
+			path,
+			"matchArrayLen length out of bounds",
+			expected,
+			fmt.Sprintf("array length %d", got),
+		)}
+	}
+
+	return nil
+}
+
+// parseArrayLenSpec parses the body of $matchArrayLen(...).
+// Supported forms: "N" (exact), "min=N", "max=M", "min=N,max=M".
+// Whitespace around "=" and "," is trimmed. The returned [minN, maxN] is the
+// inclusive allowed range; an unbounded side becomes 0 or math.MaxInt.
+func parseArrayLenSpec(body string) (minN, maxN int, err error) {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return 0, 0, fmt.Errorf("empty spec")
+	}
+
+	// Exact form: a bare unsigned integer.
+	if n, convErr := strconv.Atoi(body); convErr == nil {
+		if n < 0 {
+			return 0, 0, fmt.Errorf("negative length: %d", n)
+		}
+
+		return n, n, nil
+	}
+
+	const maxInt = int(^uint(0) >> 1)
+	minN, maxN = 0, maxInt
+	haveMin, haveMax := false, false
+
+	for _, part := range strings.Split(body, ",") {
+		kv := strings.SplitN(part, "=", 2)
+		if len(kv) != 2 {
+			return 0, 0, fmt.Errorf("expected key=value, got %q", strings.TrimSpace(part))
+		}
+
+		key := strings.TrimSpace(kv[0])
+		val := strings.TrimSpace(kv[1])
+
+		n, convErr := strconv.Atoi(val)
+		if convErr != nil {
+			return 0, 0, fmt.Errorf("%s: not an integer: %q", key, val)
+		}
+		if n < 0 {
+			return 0, 0, fmt.Errorf("%s: negative length: %d", key, n)
+		}
+
+		switch key {
+		case "min":
+			if haveMin {
+				return 0, 0, fmt.Errorf("duplicate key: min")
+			}
+			haveMin = true
+			minN = n
+		case "max":
+			if haveMax {
+				return 0, 0, fmt.Errorf("duplicate key: max")
+			}
+			haveMax = true
+			maxN = n
+		default:
+			return 0, 0, fmt.Errorf("unknown key: %q", key)
+		}
+	}
+
+	if !haveMin && !haveMax {
+		return 0, 0, fmt.Errorf("no constraints specified")
+	}
+
+	if minN > maxN {
+		return 0, 0, fmt.Errorf("min (%d) > max (%d)", minN, maxN)
+	}
+
+	return minN, maxN, nil
 }
 
 func makeError(path, msg string, expected, actual interface{}) error {

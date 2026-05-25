@@ -3,6 +3,7 @@ package compare
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/fatih/color"
@@ -499,6 +500,63 @@ func TestCompareDifferComplexJson(t *testing.T) {
 			fmt.Sprintf("got result: %v", errors),
 		)
 		t.Fail()
+	}
+}
+
+func TestMatchArrayLenExactOk(t *testing.T) {
+	errors := Compare("$matchArrayLen(3)", []interface{}{"a", "b", "c"}, Params{})
+	if len(errors) != 0 {
+		t.Errorf("must return no errors, got: %v", errors)
+	}
+}
+
+func TestMatchArrayLenExactMismatch(t *testing.T) {
+	errors := Compare("$matchArrayLen(3)", []interface{}{"a", "b"}, Params{})
+	want := makeErrorString("$", "matchArrayLen length out of bounds", "$matchArrayLen(3)", "array length 2")
+	if len(errors) != 1 || errors[0].Error() != want {
+		t.Errorf("must return one length-out-of-bounds error, got: %v", errors)
+	}
+}
+
+func TestMatchArrayLenMinEmptyFails(t *testing.T) {
+	errors := Compare("$matchArrayLen(min=1)", []interface{}{}, Params{})
+	want := makeErrorString("$", "matchArrayLen length out of bounds", "$matchArrayLen(min=1)", "array length 0")
+	if len(errors) != 1 || errors[0].Error() != want {
+		t.Errorf("must return one length-out-of-bounds error, got: %v", errors)
+	}
+}
+
+func TestMatchArrayLenRangeOk(t *testing.T) {
+	errors := Compare("$matchArrayLen(min=1,max=5)", []interface{}{"a", "b", "c"}, Params{})
+	if len(errors) != 0 {
+		t.Errorf("must return no errors, got: %v", errors)
+	}
+}
+
+func TestMatchArrayLenRequiresArray(t *testing.T) {
+	errors := Compare("$matchArrayLen(min=1)", "not-an-array", Params{})
+	want := makeErrorString("$", "matchArrayLen requires array", "$matchArrayLen(min=1)", "<string>")
+	if len(errors) != 1 || errors[0].Error() != want {
+		t.Errorf("must return one requires-array error, got: %v", errors)
+	}
+}
+
+func TestMatchArrayLenInvalidSpec(t *testing.T) {
+	errors := Compare("$matchArrayLen(min=abc)", []interface{}{"a"}, Params{})
+	if len(errors) != 1 {
+		t.Fatalf("must return one invalid-spec error, got: %v", errors)
+	}
+	if got := errors[0].Error(); !strings.Contains(got, "matchArrayLen invalid spec") {
+		t.Errorf("error does not look like an invalid-spec error: %v", got)
+	}
+}
+
+func TestMatchArrayLenInsideMap(t *testing.T) {
+	expected := map[string]interface{}{"items": "$matchArrayLen(min=2)"}
+	actual := map[string]interface{}{"items": []interface{}{1, 2, 3}}
+	errors := Compare(expected, actual, Params{})
+	if len(errors) != 0 {
+		t.Errorf("must return no errors, got: %v", errors)
 	}
 }
 
