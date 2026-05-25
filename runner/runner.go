@@ -33,6 +33,14 @@ type Config struct {
 	Variables             *variables.Variables
 	HTTPProxyURL          *url.URL
 	RequestTimeout        time.Duration
+
+	// EmitDefaultFields, when true, forces proto3 zero-value fields
+	// (false bool, 0 numbers, empty string, empty repeated/map) to be
+	// rendered in the gRPC response JSON body. The upstream grpcurl
+	// default is false, which omits these fields and breaks YAML
+	// expectations that assert on them explicitly (e.g. allowed: false,
+	// total: 0, roles: []). Applies to the gRPC transport only.
+	EmitDefaultFields bool
 }
 
 type (
